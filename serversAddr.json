@@ -1,0 +1,19 @@
+{
+  "address": [
+    {
+      "addr": "localhost:1234"
+    },
+    {
+      "addr": "localhost:2345"
+    },
+    {
+      "addr": "localhost:3456"
+    },
+    {
+      "addr": "localhost:4567"
+    },
+    {
+      "addr": "localhost:5678"
+    }
+  ]
+}
