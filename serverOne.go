@@ -1,12 +1,24 @@
 package main
 
+import (
+	"log"
+	"main/serverOperation"
+	"net"
+	"net/rpc"
+)
+
 func main() {
-	myServer := createNewServer()
-	myServer.addMessage(Message{key: "1", value: "Primo messaggio"})
-	myServer.addMessage(Message{key: "2", value: "Secondo messaggio"})
-	//myServer.Queue.Remove(myServer.Queue.Front())
-	//fmt.Println("key:", myServer.Queue.Front().Value.(Message).key)
-	//fmt.Println("key:", myServer.Queue.Front().Next().Value.(Message).key)
-	//fmt.Println("value:", myServer.Queue.Front().Value.(Message).value)
-	//fmt.Println("clock:", myServer.Queue.Front().Value.(Message).timestamp)
+	myServer := serverOperation.CreateNewServer()
+	addr := "localhost:" + "1234"
+	server := rpc.NewServer()
+	err := server.Register(myServer)
+	if err != nil {
+		log.Fatal("Format of service SyncKey is not correct: ", err)
+	}
+	lis, err := net.Listen("tcp", addr)
+	if err != nil {
+		log.Fatal("Error while starting RPC server: ", err)
+	}
+	log.Printf("RPC server listens on port %d", 1234)
+	server.Accept(lis)
 }
