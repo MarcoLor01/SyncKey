@@ -1,18 +1,23 @@
 {
   "address": [
     {
+      "id": 1,
       "addr": "localhost:1234"
     },
     {
+      "id": 2,
       "addr": "localhost:2345"
     },
     {
+      "id": 3,
       "addr": "localhost:3456"
     },
     {
+      "id": 4,
       "addr": "localhost:4567"
     },
     {
+      "id": 5,
       "addr": "localhost:5678"
     }
   ]

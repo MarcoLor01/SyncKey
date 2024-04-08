@@ -8,10 +8,12 @@ import (
 )
 
 func main() {
-	myServer := serverOperation.CreateNewServer()
+	myServer := serverOperation.CreateNewConsistentialDataStore()
 	addr := "localhost:" + "5678"
+	serverOperation.MyId = 5
 	server := rpc.NewServer()
 	err := server.Register(myServer)
+	serverOperation.InitializeServerList()
 	if err != nil {
 		log.Fatal("Format of service SyncKey is not correct: ", err)
 	}
