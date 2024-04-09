@@ -2,7 +2,6 @@ package serverOperation
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"os"
 	"sort"
@@ -55,7 +54,6 @@ func InitializeServerList() {
 	if err != nil {
 		log.Fatal("Error unmarshalling file: ", err)
 	}
-	fmt.Println(addresses.Addresses)
 }
 
 //Function for printing all the elements in the queue
