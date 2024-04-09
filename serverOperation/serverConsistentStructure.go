@@ -14,6 +14,7 @@ type Message struct {
 var MyId int //ID of this server
 var addresses ServerInformation
 
+const NumberOfServers = 5 //This is the number of the servers available
 type AckMessage struct {
 	Element    Message
 	MyServerId int
