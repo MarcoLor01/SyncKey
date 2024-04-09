@@ -2,6 +2,7 @@ package serverOperation
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"sort"
@@ -65,3 +66,20 @@ func InitializeServerList() {
 //	}
 //}
 //
+
+func (s *Server) removeFromQueue(message Message) {
+
+	i := 0
+	for _, msg := range s.localQueue {
+		fmt.Printf("TAOOOOOOOOOOOO")
+		if message.Key == msg.Key && message.Value == msg.Value && message.ScalarTimestamp == msg.ScalarTimestamp {
+			fmt.Printf("TAOOOO111111")
+			//I'm going to remove this message from my queue
+			s.dataStore[msg.Key] = msg.Value                               //This message is now deliverable
+			s.localQueue = append(s.localQueue[:i], s.localQueue[i+1:]...) //Remove
+			break
+		}
+		i++
+	}
+
+}

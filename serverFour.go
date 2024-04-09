@@ -22,5 +22,6 @@ func main() {
 		log.Fatal("Error while starting RPC server: ", err)
 	}
 	log.Printf("RPC server listens on port %d", 4567)
+
 	server.Accept(lis)
 }
