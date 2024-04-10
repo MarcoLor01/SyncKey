@@ -77,7 +77,11 @@ func (s *Server) SaveElement(message Message, resultBool *bool) error {
 					log.Fatal("Error dialing: ", err)
 				}
 				var ackResult *bool
-
+				fmt.Printf("This is my id: %d\n", MyId)
+				if MyId == 3 {
+					fmt.Printf("I'm Here!")
+					time.Sleep(10 * time.Second)
+				} //Only a try
 				err = client.Call("Server.SendAck", messageAck, &ackResult)
 				if err != nil {
 					done <- fmt.Errorf("error sending ack at server %d: %v", message.ServerId, err)
