@@ -5,3 +5,13 @@
 3) Implementa get e delete
 
 Se un server va down e torna up non è aggiornato
+
+Perchè os.Args ha len 5 e non fallise l'if?
+
+Key e Value entrambi stringhe?
+
+func (s *Server) AddElement(message *Message, reply *bool) error Giusto?
+
+Funzione delete, va bene passare direttamente un messaggio?
+
+Come mantengo il numero di ACK sulla delete
