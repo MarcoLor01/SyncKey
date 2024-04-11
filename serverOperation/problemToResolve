@@ -15,3 +15,9 @@ func (s *Server) AddElement(message *Message, reply *bool) error Giusto?
 Funzione delete, va bene passare direttamente un messaggio?
 
 Come mantengo il numero di ACK sulla delete
+
+La get deve contattare solamente un server o controllare se l'elemento è presente in tutti i server?
+
+Gestione degli errori e tutti i return nil da sistemare
+
+Error nel Client per mancanza di flag un po brutto

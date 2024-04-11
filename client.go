@@ -5,13 +5,32 @@ import (
 	"fmt"
 	"log"
 	"main/serverOperation"
+	"math/rand"
 	"net/rpc"
 	"os"
+	"strings"
 )
 
 func main() {
-	addr := "localhost:" + "1234" //Address of first server
+
+	//I want a random ID between 1-5 (the number of the servers)
+	serverId := rand.Intn(4) + 1
+	addr := "localhost"
+	switch serverId {
+	case 1:
+		addr = strings.Join([]string{addr, "1234"}, ":")
+	case 2:
+		addr = strings.Join([]string{addr, "2345"}, ":")
+	case 3:
+		addr = strings.Join([]string{addr, "3456"}, ":")
+	case 4:
+		addr = strings.Join([]string{addr, "4567"}, ":")
+	case 5:
+		addr = strings.Join([]string{addr, "5678"}, ":")
+	}
+
 	client, err := rpc.Dial("tcp", addr)
+	fmt.Printf(addr)
 	defer func(client *rpc.Client) {
 		err := client.Close()
 		if err != nil {
@@ -33,11 +52,12 @@ func main() {
 	flag.Parse()
 
 	if *actionToDo == "not specified" {
-		fmt.Printf("When you call the datastore you have to specify the action with -a (action): \n-a put with key and value for a put operation, \n-a get with the key for a get operation, \n-a delete with the key for a delete operation")
+		fmt.Printf("When you call the datastore you have to specify the action with -a (action): \n-a put with key and value for a put operation, \n-a get with the key for a get operation, \n-a delete with the key for a delete operation\n")
 		os.Exit(-1)
 	}
 
 	//--------------------------------------PUT CASE--------------------------------------//
+
 	if *actionToDo == "put" {
 		if len(os.Args) < 5 { //The procedure requests 3 arguments + 2 arguments from flag
 			fmt.Printf("No args passed in\n")
@@ -98,5 +118,29 @@ func main() {
 			value = "ABORTED"
 		}
 		fmt.Println(value)
+	}
+
+	//--------------------------------------GET CASE--------------------------------------//
+
+	if *actionToDo == "get" {
+
+		if len(os.Args) < 3 { //I need three parameters, 2 for the flag -a and 1 for the get operation<
+			fmt.Printf("No args passsed in\n")
+			os.Exit(-1)
+		}
+
+		key := os.Args[3]
+		value := new(string)
+		log.Printf("Synchronous call to RPC server")
+
+		err = client.Call("Server.GetElement", key, value) //Calling the DeleteElement function
+		if err != nil {
+			log.Fatal("Error adding the element to db, error: ", err)
+		}
+		if value != nil {
+			fmt.Printf("Element with Key %s, have value: %s", key, *value)
+		} else {
+			fmt.Printf("Problem with the get operation")
+		}
 	}
 }

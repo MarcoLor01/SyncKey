@@ -253,3 +253,17 @@ func (s *Server) DeleteElementServers(message AckMessage, result *bool) error {
 	*result = false //The server can't find the message in his queue
 	return nil
 }
+
+func (s *Server) GetElement(key string, reply *string) error {
+	fmt.Println("I'm here")
+	//For now i only take my message from my datastore
+	fmt.Printf(key)
+	for keyElement, value := range s.dataStore {
+		if key == keyElement {
+			*reply = value
+			fmt.Println("Element found")
+			return nil
+		}
+	}
+	return nil
+}
