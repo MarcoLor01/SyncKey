@@ -143,4 +143,8 @@ func main() {
 			fmt.Printf("Problem with the get operation")
 		}
 	}
+
+	if *actionToDo == "test" {
+
+	}
 }

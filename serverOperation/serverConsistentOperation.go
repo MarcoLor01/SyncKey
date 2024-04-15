@@ -8,6 +8,8 @@ import (
 )
 
 func (s *Server) AddElement(message Message, reply *bool) error { //Request of update
+	s.myMutex.Lock()
+	defer s.myMutex.Unlock()
 	s.myScalarClock++
 	message.ScalarTimestamp = s.myScalarClock //The timestamp of the message is mine scalarClock
 	message.ServerId = MyId
@@ -20,7 +22,7 @@ func (s *Server) sendToOtherServers(message Message) { //Sending the message in 
 
 	for _, address := range addresses.Addresses {
 
-		go func(addr string) { //A thread for every server that I want to contact
+		go func(addr string, msg Message) { //A thread for every server that I want to contact
 
 			resultCh := make(chan error)
 
@@ -33,8 +35,8 @@ func (s *Server) sendToOtherServers(message Message) { //Sending the message in 
 
 				var result bool //Channel that I use for control the ACK state
 
-				err = client.Call("Server.SaveElement", message, &result) //Calling the RPC request for all the servers
-				fmt.Printf("MY RESULT: %t\n", result)
+				err = client.Call("Server.SaveElement", msg, &result) //Calling the RPC request for all the servers
+				fmt.Printf("My result: %t\n", result)
 				if err != nil {
 					resultCh <- fmt.Errorf("error during the connection with %v: ", err)
 				}
@@ -44,15 +46,15 @@ func (s *Server) sendToOtherServers(message Message) { //Sending the message in 
 					return
 				}
 			}
-		}(address.Addr)
+		}(address.Addr, message)
 	}
 }
 
 func (s *Server) SaveElement(message Message, resultBool *bool) error {
 
+	*resultBool = false
 	s.myMutex.Lock()
 	defer s.myMutex.Unlock()
-	*resultBool = false
 	if message.ServerId != MyId { //I update my clock only if I'm not the sender
 		if message.ScalarTimestamp > s.myScalarClock {
 			s.myScalarClock = message.ScalarTimestamp
@@ -102,11 +104,10 @@ func (s *Server) SaveElement(message Message, resultBool *bool) error {
 
 func (s *Server) SendAck(message AckMessage, done *bool) error {
 
-	s.myMutex.Lock()
-	defer s.myMutex.Unlock()
 	//serverCounter := 0
 
 	for _, myValue := range s.localQueue { //Iteration over the queue
+		s.myMutex.Lock()
 		if message.Element.Value == myValue.Value &&
 			message.Element.Key == myValue.Key &&
 			message.Element.ScalarTimestamp == myValue.ScalarTimestamp {
@@ -130,6 +131,7 @@ func (s *Server) SendAck(message AckMessage, done *bool) error {
 			}
 
 			fmt.Printf("I received %d ACK's\n", myValue.numberAck)
+			s.myMutex.Unlock()
 			return nil
 		}
 	}
@@ -226,18 +228,17 @@ func (s *Server) sendToOtherServersDelete(message Message) {
 
 func (s *Server) DeleteElementServers(message AckMessage, result *bool) error {
 
-	s.myMutex.Lock()
-	defer s.myMutex.Unlock()
 	//serverCounter := 0
 
 	for key := range s.dataStore { //Iteration over the queue
+		s.myMutex.Lock()
 		if key == message.Element.Key {
 			//If the message is in my queue I update the number of the received ACK for my message
 			fmt.Println("This Ack is sending by: ", message.MyServerId)
 			*result = true
 
 			//Checking if the message is deliverable to the application
-			//if myValue.numberAck == NumberOfServers { //COME FACCIO?
+			//if myValue.numberAck == NumberOfServers {
 			//serverCounter == NumberOfServers { (?)
 			//Now I need to check if each process has a message in the
 			//queue with a timestamp higher than message.timestamp (?)
@@ -245,9 +246,10 @@ func (s *Server) DeleteElementServers(message AckMessage, result *bool) error {
 			fmt.Printf("\n\n---------------DATASTORE---------------\n")
 			fmt.Println(s.dataStore)
 			fmt.Printf("\n---------------------------------------")
-		}
 
+		}
 		//fmt.Printf("I received %d ACK's\n", myValue.numberAck)
+		s.myMutex.Unlock()
 		return nil
 	}
 	*result = false //The server can't find the message in his queue
@@ -255,9 +257,7 @@ func (s *Server) DeleteElementServers(message AckMessage, result *bool) error {
 }
 
 func (s *Server) GetElement(key string, reply *string) error {
-	fmt.Println("I'm here")
 	//For now i only take my message from my datastore
-	fmt.Printf(key)
 	for keyElement, value := range s.dataStore {
 		if key == keyElement {
 			*reply = value

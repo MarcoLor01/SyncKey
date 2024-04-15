@@ -21,3 +21,5 @@ La get deve contattare solamente un server o controllare se l'elemento è presen
 Gestione degli errori e tutti i return nil da sistemare
 
 Error nel Client per mancanza di flag un po brutto
+
+Funzione di test con RPC
