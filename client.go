@@ -71,16 +71,20 @@ func main() {
 
 		log.Printf("Synchronous call to RPC server")
 
-		var result bool
+		result := &serverOperation.Response{
+			Done:   false,
+			ChDone: make(chan int),
+		}
 
 		err = client.Call("Server.AddElement", args, &result) //Calling the AddElement routine
 		if err != nil {
 			log.Fatal("Error adding the element to db, error: ", err)
 		}
-
+		x := <-result.ChDone
+		fmt.Printf("%d\n\n", x)
 		var value string
 
-		if result == true {
+		if result.Done == true {
 			value = "SUCCESS"
 		} else {
 			value = "ABORTED"
@@ -137,6 +141,7 @@ func main() {
 		if err != nil {
 			log.Fatal("Error adding the element to db, error: ", err)
 		}
+
 		if value != nil {
 			fmt.Printf("Element with Key %s, have value: %s", key, *value)
 		} else {

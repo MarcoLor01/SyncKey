@@ -7,39 +7,33 @@ import (
 	"sort"
 )
 
-//Function for ordering my server queue
+//Two Function for ordering my server queue: the first for the causal consistency and the other for the sequential consistency
 
 func (s *Server) addToQueue(message Message) {
-	var found bool
-	var insertAfter *Message
+	var insertIndex int
+
+	s.myMutex.Lock()
+	// Trova l'indice in cui inserire il messaggio
 	for i, element := range s.localQueue {
 		if message.Key == element.Key {
-			s.localQueue[i] = &message //Adding message at the queue
-			found = true
-			break
+			s.localQueue[i] = &message // Aggiungi il messaggio alla coda
+			return
 		}
 		if message.ScalarTimestamp >= element.ScalarTimestamp {
-			insertAfter = element //I add the message after this element
+			insertIndex = i + 1
 		} else {
 			break
 		}
 	}
 
-	if !found {
-		if insertAfter != nil {
-			for i, element := range s.localQueue {
-				if element == insertAfter {
-					s.localQueue = append(s.localQueue[:i+1], append([]*Message{&message}, s.localQueue[i+1:]...)...)
-					break
-				}
-			}
-		} else {
-			s.localQueue = append([]*Message{&message}, s.localQueue...)
-		}
-	}
+	// Inserisci il messaggio nell'indice trovato
+	s.localQueue = append(s.localQueue[:insertIndex], append([]*Message{&message}, s.localQueue[insertIndex:]...)...)
+
+	// Ordina la coda in base al timestamp scalare
 	sort.Slice(s.localQueue, func(i, j int) bool {
 		return s.localQueue[i].ScalarTimestamp < s.localQueue[j].ScalarTimestamp
 	})
+	s.myMutex.Unlock()
 }
 
 //Initialize the list of the server in the configuration file
@@ -67,7 +61,7 @@ func InitializeServerList() {
 //
 
 func (s *Server) removeFromQueue(message Message) {
-
+	s.myMutex.Lock()
 	i := 0
 	for _, msg := range s.localQueue {
 
@@ -80,5 +74,5 @@ func (s *Server) removeFromQueue(message Message) {
 		}
 		i++
 	}
-
+	s.myMutex.Unlock()
 }

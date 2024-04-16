@@ -7,18 +7,28 @@ import (
 	"time"
 )
 
-func (s *Server) AddElement(message Message, reply *bool) error { //Request of update
+func (s *Server) AddElement(message Message, response *Response) error { //Request of update
 	s.myMutex.Lock()
 	defer s.myMutex.Unlock()
+
 	s.myScalarClock++
 	message.ScalarTimestamp = s.myScalarClock //The timestamp of the message is mine scalarClock
 	message.ServerId = MyId
-	s.sendToOtherServers(message) //Sending the message to all the servers
-	*reply = true
+
+	s.sendToOtherServers(message, response) //Sending the message to all the servers
+
+	s.myGoRoutineMutex.Add(1)
+	go func() {
+		for {
+			x := <-response.ChDone
+			fmt.Printf("New value %d\n\n", x)
+		}
+	}()
+	s.myGoRoutineMutex.Done()
 	return nil
 }
 
-func (s *Server) sendToOtherServers(message Message) { //Sending the message in multicast
+func (s *Server) sendToOtherServers(message Message, response *Response) { //Sending the message in multicast
 
 	for _, address := range addresses.Addresses {
 
@@ -33,14 +43,12 @@ func (s *Server) sendToOtherServers(message Message) { //Sending the message in 
 					log.Fatal("Error in dialing: ", err)
 				}
 
-				var result bool //Channel that I use for control the ACK state
+				err = client.Call("Server.SaveElement", msg, response) //Calling the RPC request for all the servers
 
-				err = client.Call("Server.SaveElement", msg, &result) //Calling the RPC request for all the servers
-				fmt.Printf("My result: %t\n", result)
 				if err != nil {
 					resultCh <- fmt.Errorf("error during the connection with %v: ", err)
 				}
-				if result == false { //If it hasn't succeeded, try again.
+				if response.Done == false { //If it hasn't succeeded, try again.
 					continue
 				} else { //If the procedure has been successful, exit the for loop.
 					return
@@ -50,11 +58,11 @@ func (s *Server) sendToOtherServers(message Message) { //Sending the message in 
 	}
 }
 
-func (s *Server) SaveElement(message Message, resultBool *bool) error {
+func (s *Server) SaveElement(message Message, result *Response) error {
 
-	*resultBool = false
 	s.myMutex.Lock()
 	defer s.myMutex.Unlock()
+	result.Done = false
 	if message.ServerId != MyId { //I update my clock only if I'm not the sender
 		if message.ScalarTimestamp > s.myScalarClock {
 			s.myScalarClock = message.ScalarTimestamp
@@ -66,10 +74,9 @@ func (s *Server) SaveElement(message Message, resultBool *bool) error {
 
 	//Now I send the ACK in multicast
 
-	done := make(chan error)
 	messageAck := AckMessage{Element: message, MyServerId: MyId}
 	for _, address := range addresses.Addresses { //Iterating on the various server
-
+		done := make(chan error)
 		go func(addr string) {
 
 			for {
@@ -78,65 +85,85 @@ func (s *Server) SaveElement(message Message, resultBool *bool) error {
 				if err != nil {
 					log.Fatal("Error dialing: ", err)
 				}
-				var ackResult *bool
-				fmt.Printf("This is my id: %d\n", MyId)
-				if MyId == 3 {
-					fmt.Printf("I'm Here!")
-					//time.Sleep(10 * time.Second)
-				} //Only a try
-				err = client.Call("Server.SendAck", messageAck, &ackResult)
+
+				err = client.Call("Server.SendAck", messageAck, result)
 				if err != nil {
 					done <- fmt.Errorf("error sending ack at server %d: %v", message.ServerId, err)
 				}
-				if *ackResult == false { //If the other server doesn't accept the ACK
-					time.Sleep(2) //Wait 2 second and retry
-					continue      //Retry
+				go func() {
+					for {
+						fmt.Println("SDAFADSFDASF")
+						x := <-result.ChDone
+						fmt.Printf("ADFDASF%d\n", x)
+					}
+				}()
+
+				if result.Done == false { //If the other server doesn't accept the ACK
+					time.Sleep(1 * time.Second) //Wait 2 second and retry
+					continue                    //Retry
 				}
-				if *ackResult == true {
+				if result.Done == true {
 					break
 				}
 			}
 		}(address.Addr)
 	}
-	*resultBool = true
+	result.Done = true
 	return nil
 }
 
-func (s *Server) SendAck(message AckMessage, done *bool) error {
+func (s *Server) SendAck(message AckMessage, reply *Response) error {
 
-	//serverCounter := 0
-
+	s.myMutex.Lock()
 	for _, myValue := range s.localQueue { //Iteration over the queue
-		s.myMutex.Lock()
+
 		if message.Element.Value == myValue.Value &&
 			message.Element.Key == myValue.Key &&
 			message.Element.ScalarTimestamp == myValue.ScalarTimestamp {
 			//If the message is in my queue I update the number of the received ACK for my message
 			fmt.Println("This Ack is sending by: ", message.MyServerId)
 			myValue.numberAck++
-			*done = true
+			reply.Done = true
+
 			if myValue.numberAck == NumberOfServers {
 				//go checkingTimestamp(message.Element, &serverCounter)
 				//fmt.Printf("Actual value of the serverCounter is: %d\n", serverCounter)
 			}
+
 			//Checking if the message is deliverable to the application
 			if s.localQueue[0] == myValue && myValue.numberAck == NumberOfServers {
 				//serverCounter == NumberOfServers { (?)
 				//Now I need to check if each process has a message in the
 				//queue with a timestamp higher than message.timestamp (?)
 				s.removeFromQueue(*myValue)
-				fmt.Printf("\n\n---------------DATASTORE---------------\n")
-				fmt.Println(s.dataStore)
-				fmt.Printf("\n---------------------------------------")
-			}
 
+				go func() {
+					fmt.Printf("Invia mexxxx")
+					reply.ChDone <- 1
+				}()
+
+				s.printDataStore(s.dataStore)
+
+			}
 			fmt.Printf("I received %d ACK's\n", myValue.numberAck)
 			s.myMutex.Unlock()
 			return nil
 		}
+		s.myMutex.Unlock()
 	}
-	*done = false //The server can't find the message in his queue
+	reply.Done = false //The server can't find the message in his queue
+	s.myMutex.Unlock()
 	return nil
+}
+
+func (s *Server) printDataStore(dataStore map[string]string) {
+
+	fmt.Printf("\n\n---------------DATASTORE---------------\n")
+	for key, value := range dataStore {
+		fmt.Printf("Key: %s, Value: %s\n", key, value)
+	}
+	fmt.Printf("\n---------------------------------------\n")
+
 }
 
 //func checkingTimestamp(message Message, serverCounter *int) {
@@ -212,7 +239,6 @@ func (s *Server) sendToOtherServersDelete(message Message) {
 				var result bool //Channel that I use for control the ACK state
 
 				err = client.Call("Server.DeleteElementServers", messageAck, &result) //Calling the RPC request for all the servers
-				fmt.Printf("MY RESULT: %t\n", result)
 				if err != nil {
 					resultCh <- fmt.Errorf("error during the connection with: %v", err)
 				}

@@ -23,3 +23,7 @@ Gestione degli errori e tutti i return nil da sistemare
 Error nel Client per mancanza di flag un po brutto
 
 Funzione di test con RPC
+
+In SaveElement e conseguente SaveCausalElement, se sono io devo aumentare il mio timestamp?
+
+Causale, in multicast anche a me stesso?
