@@ -20,7 +20,6 @@ var MyId int //ID of this server
 var addresses ServerInformation
 
 const NumberOfServers = 5 //This is the number of the servers available
-const maxRetry = 20       //The maximum number of retry
 type AckMessage struct {
 	Element    Message
 	MyServerId int
@@ -53,11 +52,11 @@ func CreateNewConsistentialDataStore() *Server {
 	}
 } //Creation of a new DataStore that supports sequential consistency
 
-func CreateNewCausalDataStore() *Server {
-
-	return &Server{
-		localQueue: make([]*Message, 0),
-		myClock:    make([]int, NumberOfServers), //My vectorial Clock
-		dataStore:  make(map[string]string),
-	}
-} //Creation of a new DataStore that supports causal consistency
+//func CreateNewCausalDataStore() *Server {
+//
+//	return &Server{
+//		localQueue: make([]*Message, 0),
+//		myClock:    make([]int, NumberOfServers), //My vectorial Clock
+//		dataStore:  make(map[string]string),
+//	}
+//} //Creation of a new DataStore that supports causal consistency
