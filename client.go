@@ -67,21 +67,18 @@ func main() {
 		n2 := os.Args[4] //Value
 		scalarClock := 0
 		fmt.Printf("Adding element with Key: %s, and Value: %s\n", n1, n2)
-		args := serverOperation.Message{Key: n1, Value: n2, ScalarTimestamp: scalarClock}
+		args := serverOperation.Message{Key: n1, Value: n2, ScalarTimestamp: scalarClock, OperationType: 1}
 
 		log.Printf("Synchronous call to RPC server")
 
 		result := &serverOperation.Response{
-			Done:   false,
-			ChDone: make(chan int),
+			Done: false,
 		}
 
 		err = client.Call("Server.AddElement", args, &result) //Calling the AddElement routine
 		if err != nil {
 			log.Fatal("Error adding the element to db, error: ", err)
 		}
-		x := <-result.ChDone
-		fmt.Printf("%d\n\n", x)
 		var value string
 
 		if result.Done == true {
@@ -103,20 +100,22 @@ func main() {
 		scalarClock := 0
 
 		fmt.Printf("Get element with Key: %s\n", n1)
-		args := serverOperation.Message{Key: n1, ScalarTimestamp: scalarClock}
+		args := serverOperation.Message{Key: n1, ScalarTimestamp: scalarClock, OperationType: 2}
 
 		log.Printf("Synchronous call to RPC server")
 
-		var result bool
+		result := &serverOperation.Response{
+			Done: false,
+		}
 
-		err = client.Call("Server.DeleteElement", args, &result) //Calling the DeleteElement function
+		err = client.Call("Server.AddElement", args, &result) //Calling the DeleteElement function
 		if err != nil {
 			log.Fatal("Error adding the element to db, error: ", err)
 		}
-
+		fmt.Println("2")
 		var value string
 
-		if result == true {
+		if result.Done == true {
 			value = "SUCCESS"
 		} else {
 			value = "ABORTED"
@@ -142,10 +141,10 @@ func main() {
 			log.Fatal("Error adding the element to db, error: ", err)
 		}
 
-		if value != nil {
+		if *value != "" {
 			fmt.Printf("Element with Key %s, have value: %s", key, *value)
 		} else {
-			fmt.Printf("Problem with the get operation")
+			fmt.Printf("No element with Key: %s\n", key)
 		}
 	}
 

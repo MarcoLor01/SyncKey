@@ -9,11 +9,12 @@ type Message struct {
 	ScalarTimestamp int   //Scalar timestamp
 	ServerId        int   //If Server1 is sending the message, he must not update his scalarClock
 	numberAck       int   //Only if number == NumberOfServers the message become readable
+	OperationType   int   //For put operation operationType is 1, for delete operation operationType 2
 } //Struct of a message between Servers
 
 type Response struct {
-	Done   bool
-	ChDone chan int
+	Done            bool
+	ResponseChannel chan bool
 }
 
 var MyId int //ID of this server

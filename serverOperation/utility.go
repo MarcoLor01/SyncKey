@@ -12,7 +12,6 @@ import (
 func (s *Server) addToQueue(message Message) {
 	var insertIndex int
 
-	s.myMutex.Lock()
 	// Trova l'indice in cui inserire il messaggio
 	for i, element := range s.localQueue {
 		if message.Key == element.Key {
@@ -33,7 +32,7 @@ func (s *Server) addToQueue(message Message) {
 	sort.Slice(s.localQueue, func(i, j int) bool {
 		return s.localQueue[i].ScalarTimestamp < s.localQueue[j].ScalarTimestamp
 	})
-	s.myMutex.Unlock()
+
 }
 
 //Initialize the list of the server in the configuration file
@@ -61,18 +60,33 @@ func InitializeServerList() {
 //
 
 func (s *Server) removeFromQueue(message Message) {
-	s.myMutex.Lock()
+
 	i := 0
 	for _, msg := range s.localQueue {
 
 		if message.Key == msg.Key && message.Value == msg.Value && message.ScalarTimestamp == msg.ScalarTimestamp {
 
 			//I'm going to remove this message from my queue
-			s.dataStore[msg.Key] = msg.Value                               //This message is now deliverable
+			s.dataStore[msg.Key] = msg.Value                               //Insert message in my DS
 			s.localQueue = append(s.localQueue[:i], s.localQueue[i+1:]...) //Remove
 			break
 		}
 		i++
 	}
-	s.myMutex.Unlock()
+
+}
+
+func (s *Server) removeFromQueueDeleting(message Message) {
+	i := 0
+	for _, msg := range s.localQueue {
+
+		if message.Key == msg.Key && message.Value == msg.Value && message.ScalarTimestamp == msg.ScalarTimestamp {
+
+			//I'm going to remove this message from my queue
+			delete(s.dataStore, msg.Key)                                   //Insert message in my DS
+			s.localQueue = append(s.localQueue[:i], s.localQueue[i+1:]...) //Remove
+			break
+		}
+		i++
+	}
 }
