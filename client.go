@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -8,29 +9,36 @@ import (
 	"math/rand"
 	"net/rpc"
 	"os"
-	"strings"
 )
+
+type Addrs struct {
+	ID   int    `json:"id"`
+	Addr string `json:"addr"`
+}
+
+type Config struct {
+	Address []Addrs `json:"address"`
+}
 
 func main() {
 
-	//I want a random ID between 1-5 (the number of the servers)
-	serverId := rand.Intn(4) + 1
-	addr := "localhost"
-	switch serverId {
-	case 1:
-		addr = strings.Join([]string{addr, "1234"}, ":")
-	case 2:
-		addr = strings.Join([]string{addr, "2345"}, ":")
-	case 3:
-		addr = strings.Join([]string{addr, "3456"}, ":")
-	case 4:
-		addr = strings.Join([]string{addr, "4567"}, ":")
-	case 5:
-		addr = strings.Join([]string{addr, "5678"}, ":")
+	fileContent, err := os.ReadFile("serversAddr.json")
+	if err != nil {
+		fmt.Println("Error reading file:", err)
+		return
 	}
 
-	client, err := rpc.Dial("tcp", addr)
-	fmt.Printf(addr)
+	var config Config
+	if err := json.Unmarshal(fileContent, &config); err != nil {
+		fmt.Println("Error in JSON decode:", err)
+		return
+	}
+	//I want a random ID between 1-5 (the number of the servers)
+
+	serverNumber := rand.Intn(len(config.Address) - 1) //The server that I have to contact
+
+	client, err := rpc.Dial("tcp", config.Address[serverNumber].Addr)
+
 	defer func(client *rpc.Client) {
 		err := client.Close()
 		if err != nil {
@@ -54,20 +62,17 @@ func main() {
 	if *actionToDo == "not specified" {
 		fmt.Printf("When you call the datastore you have to specify the action with -a (action): \n-a put with key and value for a put operation, \n-a get with the key for a get operation, \n-a delete with the key for a delete operation\n")
 		os.Exit(-1)
-	}
-
-	//--------------------------------------PUT CASE--------------------------------------//
-
-	if *actionToDo == "put" {
+		//--------------------------------------PUT CASE--------------------------------------//
+	} else if *actionToDo == "put" {
 		if len(os.Args) < 5 { //The procedure requests 3 arguments + 2 arguments from flag
 			fmt.Printf("No args passed in\n")
 			os.Exit(1)
 		}
 		n1 := os.Args[3] //Key
 		n2 := os.Args[4] //Value
-		scalarClock := 0
+		//scalarClock := 0
 		fmt.Printf("Adding element with Key: %s, and Value: %s\n", n1, n2)
-		args := serverOperation.Message{Key: n1, Value: n2, ScalarTimestamp: scalarClock, OperationType: 1}
+		args := serverOperation.Message{Key: n1, Value: n2 /*ScalarTimestamp: scalarClock */, VectorTimestamp: make([]int, serverNumber), OperationType: 1}
 
 		log.Printf("Synchronous call to RPC server")
 
@@ -75,7 +80,7 @@ func main() {
 			Done: false,
 		}
 
-		err = client.Call("Server.AddElement", args, &result) //Calling the AddElement routine
+		err = client.Call("Server.CausalSendElement", args, &result) //Calling the AddElement routine
 		if err != nil {
 			log.Fatal("Error adding the element to db, error: ", err)
 		}
@@ -87,11 +92,8 @@ func main() {
 			value = "ABORTED"
 		}
 		fmt.Println(value)
-	}
-
-	//--------------------------------------DELETE CASE--------------------------------------//
-
-	if *actionToDo == "delete" {
+		//--------------------------------------DELETE CASE--------------------------------------//
+	} else if *actionToDo == "delete" {
 		if len(os.Args) < 3 { //The procedure requests 1 arguments + 2 arguments from flag
 			fmt.Printf("No args passed in\n")
 			os.Exit(1)
@@ -121,11 +123,8 @@ func main() {
 			value = "ABORTED"
 		}
 		fmt.Println(value)
-	}
-
-	//--------------------------------------GET CASE--------------------------------------//
-
-	if *actionToDo == "get" {
+		//--------------------------------------GET CASE--------------------------------------//
+	} else if *actionToDo == "get" {
 
 		if len(os.Args) < 3 { //I need three parameters, 2 for the flag -a and 1 for the get operation<
 			fmt.Printf("No args passsed in\n")
@@ -146,9 +145,8 @@ func main() {
 		} else {
 			fmt.Printf("No element with Key: %s\n", key)
 		}
-	}
-
-	if *actionToDo == "test" {
-
+	} else {
+		log.Printf("Uncorrect flag")
+		return
 	}
 }

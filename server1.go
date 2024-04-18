@@ -1,19 +1,40 @@
 package main
 
 import (
+	"flag"
+	"fmt"
 	"log"
 	"main/serverOperation"
 	"net"
 	"net/rpc"
+	"os"
 )
 
 func main() {
-	myServer := serverOperation.CreateNewConsistentialDataStore() //Create a new Server
-	addr := "localhost:" + "1234"                                 //My address
-	serverOperation.MyId = 1                                      //My id
+	var myServer *serverOperation.Server
+
+	actionToDo := flag.String("m", "not specified", "action") //Defining a flag, with that
+	//the user can specify what he wants to do
+	flag.Parse()
+	serverOperation.InitializeServerList()
+	if *actionToDo == "not specified" {
+		fmt.Printf("When you call the server you have to specify the modality with -m: \n-a seq for sequential consistency, \n-a caus for causal consistency\n")
+		os.Exit(-1)
+	} else if *actionToDo == "seq" {
+		myServer = serverOperation.CreateNewSequentialDataStore() //Create a new Server
+	} else if *actionToDo == "caus" {
+		myServer = serverOperation.CreateNewCausalDataStore()
+		fmt.Printf("Lunghezza inizializzazione: %d\n\n", len(myServer.MyClock))
+	} else {
+		fmt.Println("3")
+		fmt.Println("Error value for the flag")
+		return
+	}
+	addr := "localhost:" + "1234" //My address
+	serverOperation.MyId = 1      //My id
 	server := rpc.NewServer()
 	err := server.Register(myServer) //Registering my server
-	serverOperation.InitializeServerList()
+
 	if err != nil {
 		log.Fatal("Format of service SyncKey is not correct: ", err)
 	}

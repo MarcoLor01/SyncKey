@@ -2,97 +2,120 @@ package serverOperation
 
 import (
 	"fmt"
-	"log"
 	"net/rpc"
-	"time"
 )
 
-func (s *Server) PutElement(message Message, reply *bool) error {
+func (s *Server) CausalSendElement(message Message, reply *Response) error {
+
 	s.myMutex.Lock()
 	defer s.myMutex.Unlock()
-	s.myClock[MyId]++
-	fmt.Printf("Ho incrementato il mio id %d\n", s.myClock[MyId])
-	message.VectorTimestamp = s.myClock
+	s.MyClock[MyId-1]++
+	message.VectorTimestamp = s.MyClock
 	message.ServerId = MyId
-	s.sendToServers(message)
-	*reply = true
+
+	//response := &Response{
+	//	Done:            false,
+	//	ResponseChannel: make(chan bool),
+	//}
+	s.sendToOtherServersCausal(message, reply)
+
 	return nil
 }
 
-func (s *Server) sendToServers(message Message) {
+func (s *Server) sendToOtherServersCausal(message Message, response *Response) {
 
 	for _, address := range addresses.Addresses {
 
-		go func(addr string, msg Message) { //A thread for every server that I want to contact
+		addr := address
 
-			resultChan := make(chan error)
+		go func(addr string, msg Message) error { //
 
 			for {
 				client, err := rpc.Dial("tcp", addr)
 				if err != nil {
-					log.Fatal("Error in dialing: ", err)
+					return err
 				}
-				var result bool //Channel that I use for control the ACK state
 
-				err = client.Call("Server.SaveCausalElement", msg, &result) //Calling the RPC request for all the servers
-				fmt.Printf("My result: %t\n\n", result)
-				if err != nil {
-					resultChan <- fmt.Errorf("error during the connection with %v: ", err)
+				reply := Response{Done: false}
+
+				if err1 := client.Call("Server.SaveElementCausal", msg, &reply); err1 != nil {
+					response.ResponseChannel <- false
 				}
-				if result == false { //If it hasn't succeeded, try again.
-					continue
-				} else { //If the procedure has been successful, exit the for loop.
-					return
+
+				if reply.Done == false {
+					response.ResponseChannel <- false
 				}
+
+				response.Done = true
+				response.ResponseChannel <- true
+				return nil
 			}
-		}(address.Addr, message)
+		}(addr.Addr, message)
 	}
 }
 
-func (s *Server) SaveCausalElement(message Message, reply *bool) error {
-
+func (s *Server) SaveElementCausal(message Message, reply *Response) error {
+	fmt.Printf("Sono il server: %d\n", MyId)
 	s.myMutex.Lock()
 	defer s.myMutex.Unlock()
+	fmt.Println(message.VectorTimestamp)
 
-	*reply = false
+	s.addToQueue(message)
 
-	if message.ServerId != MyId { ///I update my clock only if I'm not the sender
-		if message.VectorTimestamp[MyId] > s.myClock[MyId] {
-			s.myClock[MyId] = message.VectorTimestamp[MyId]
-		}
-	}
-	s.myClock[MyId]++
-	s.localQueue = append(s.localQueue, &message)
+	for _, message2 := range s.localQueue {
 
-	//Now I send the ACK in multicast
-
-	done := make(chan error)
-	messageAck := AckMessage{Element: message, MyServerId: MyId}
-	for _, address := range addresses.Addresses {
-
-		go func(addr string) {
-
+		go func(message2 Message) {
+			var mod bool
 			for {
-				client, err := rpc.Dial("tcp", addr)
-				if err != nil {
-					log.Fatal("Error dialing: ", err)
+				if MyId == message2.ServerId {
+					if message2.VectorTimestamp[message2.ServerId-1] == s.MyClock[message2.ServerId-1] {
+						mod = true
+					} else {
+						mod = false
+					}
+				} else {
+					if message2.VectorTimestamp[message2.ServerId-1] == s.MyClock[message2.ServerId-1]+1 {
+						mod = true
+					} else {
+						mod = false
+					}
 				}
-				var ackResult *bool
-				fmt.Printf("This is my id: %d\n", MyId)
-				err = client.Call("Server.SendCausalAck", messageAck, &ackResult)
-				if err != nil {
-					done <- fmt.Errorf("error sending ack at server %d: %v", message.ServerId, err)
+				//Se sono qui o sono il server che ha inviato oppure almeno l'indice di chi l'ha inviato
+				//E' corretto, ora valutiamo gli altri indici
+
+				if mod == true {
+					var index int
+					for index = 0; index < len(s.MyClock); index++ {
+						if index == message2.ServerId-1 {
+							//Già controllato
+						} else if message2.VectorTimestamp[index] <= s.MyClock[index] {
+
+						} else {
+							fmt.Printf("Sono qui all'iterazione numero: %d\n", index)
+							reply.Done = false
+							return
+						}
+					}
+					reply.Done = true
+					fmt.Println(reply.Done)
+				} else {
+					reply.Done = false
+					return
 				}
-				if *ackResult == false { //If the other server doesn't accept the ACK
-					time.Sleep(2) //Wait 2 second and retry
-					continue      //Retry
+				fmt.Println("The message is deliverable")
+				s.removeFromQueue(message2)
+				s.printDataStore(s.dataStore)
+
+				for ind := 0; ind < len(s.MyClock); ind++ {
+					if message2.VectorTimestamp[ind] > s.MyClock[ind] {
+						s.MyClock[ind] = message2.VectorTimestamp[ind]
+					}
+
 				}
-				if *ackResult == true {
-					break
-				}
+				fmt.Printf("My new timestamp: ")
+				fmt.Println(s.MyClock)
 			}
-		}(address.Addr)
+		}(*message2)
 	}
-	*reply = true
 	return nil
 }

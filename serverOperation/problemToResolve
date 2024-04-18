@@ -1,29 +1,11 @@
 1) Devo implementare il controllo del timestamp e quindi l'invio effettivo dell'ack visto come messaggio?
-2) Sistemare mutex
-3) Sistemare channel di errori
-
-3) Implementa get e delete
 
 Se un server va down e torna up non è aggiornato
-
-Perchè os.Args ha len 5 e non fallise l'if?
-
-Key e Value entrambi stringhe?
-
-func (s *Server) AddElement(message *Message, reply *bool) error Giusto?
 
 Funzione delete, va bene passare direttamente un messaggio?
 
 Come mantengo il numero di ACK sulla delete
 
 La get deve contattare solamente un server o controllare se l'elemento è presente in tutti i server?
-
-Gestione degli errori e tutti i return nil da sistemare
-
-Error nel Client per mancanza di flag un po brutto
-
-Funzione di test con RPC
-
-In SaveElement e conseguente SaveCausalElement, se sono io devo aumentare il mio timestamp?
 
 Causale, in multicast anche a me stesso?

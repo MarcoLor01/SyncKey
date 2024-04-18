@@ -1,6 +1,8 @@
 package serverOperation
 
-import "sync"
+import (
+	"sync"
+)
 
 type Message struct {
 	Key             string
@@ -20,7 +22,6 @@ type Response struct {
 var MyId int //ID of this server
 var addresses ServerInformation
 
-const NumberOfServers = 5 //This is the number of the servers available
 type AckMessage struct {
 	Element    Message
 	MyServerId int
@@ -38,26 +39,40 @@ type ServerInformation struct {
 type Server struct {
 	dataStore        map[string]string //The Key-Value Database
 	localQueue       []*Message
-	myClock          []int //Vector Clock
-	myScalarClock    int   //Scalar Clock
+	MyClock          []int //Vector Clock
+	MyScalarClock    int   //Scalar Clock
 	myMutex          sync.Mutex
 	myGoRoutineMutex sync.WaitGroup
 } //I want to use this structure with causal and sequential consistent
 
-func CreateNewConsistentialDataStore() *Server {
+func CreateNewSequentialDataStore() *Server {
 
 	return &Server{
 		localQueue:    make([]*Message, 0),
 		dataStore:     make(map[string]string),
-		myScalarClock: 0, //Initial Clock
+		MyScalarClock: 0, //Initial Clock
 	}
 } //Creation of a new DataStore that supports sequential consistency
 
-//func CreateNewCausalDataStore() *Server {
-//
-//	return &Server{
-//		localQueue: make([]*Message, 0),
-//		myClock:    make([]int, NumberOfServers), //My vectorial Clock
-//		dataStore:  make(map[string]string),
-//	}
-//} //Creation of a new DataStore that supports causal consistency
+func CreateNewCausalDataStore() *Server {
+
+	return &Server{
+		localQueue:    make([]*Message, 0),
+		MyClock:       make([]int, len(addresses.Addresses)), //My vectorial Clock
+		dataStore:     make(map[string]string),
+		MyScalarClock: -1, //I don't use it
+	}
+
+} //Creation of a new DataStore that supports causal consistency
+
+func (s *Server) ChoiceConsistency(serverType int) {
+
+	serverType = -1
+	if s.MyScalarClock == -1 {
+		serverType = 0 //Causal consistency
+	}
+	if s.MyScalarClock != -1 {
+		serverType = 1 //If i have initialized the scalarClock the server is using the sequential consistency
+	}
+
+}
