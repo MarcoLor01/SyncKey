@@ -37,6 +37,7 @@ func (s *Server) sendToOtherServers(message Message, response *Response) { //Sen
 
 		go func(addr string, msg Message) error {
 			log.Printf("Go routine numero %d\n", int1)
+			int1++
 			defer wg.Done()
 			for {
 				client, err := rpc.Dial("tcp", addr)
