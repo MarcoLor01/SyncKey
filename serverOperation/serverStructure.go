@@ -17,6 +17,7 @@ type Message struct {
 type Response struct {
 	Done            bool
 	ResponseChannel chan bool
+	myCh            bool
 }
 
 var MyId int //ID of this server
@@ -37,12 +38,11 @@ type ServerInformation struct {
 }
 
 type Server struct {
-	dataStore        map[string]string //The Key-Value Database
-	localQueue       []*Message
-	MyClock          []int //Vector Clock
-	MyScalarClock    int   //Scalar Clock
-	myMutex          sync.Mutex
-	myGoRoutineMutex sync.WaitGroup
+	dataStore     map[string]string //The Key-Value Database
+	localQueue    []*Message
+	MyClock       []int //Vector Clock
+	MyScalarClock int   //Scalar Clock
+	myMutex       sync.Mutex
 } //I want to use this structure with causal and sequential consistent
 
 func CreateNewSequentialDataStore() *Server {

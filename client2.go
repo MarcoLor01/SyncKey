@@ -11,15 +11,6 @@ import (
 	"os"
 )
 
-type Addrs struct {
-	ID   int    `json:"id"`
-	Addr string `json:"addr"`
-}
-
-type Config struct {
-	Address []Addrs `json:"address"`
-}
-
 func main() {
 
 	fileContent, err := os.ReadFile("serversAddr.json")

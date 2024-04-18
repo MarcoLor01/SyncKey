@@ -4,40 +4,40 @@ import (
 	"fmt"
 	"log"
 	"net/rpc"
+	"sync"
 	"time"
 )
 
 func (s *Server) AddElement(message Message, response *Response) error { //Request of update
-	s.myMutex.Lock()
 
+	s.myMutex.Lock()
+	defer s.myMutex.Unlock()
 	s.MyScalarClock++
 	message.ScalarTimestamp = s.MyScalarClock //The timestamp of the message is mine scalarClock
 	message.ServerId = MyId
+
 	reply := &Response{
-		Done:            false,
-		ResponseChannel: make(chan bool),
+		Done: false,
 	}
 
 	s.sendToOtherServers(message, reply)
-
-	for {
-		x := <-reply.ResponseChannel
-
-		response.Done = x
-		s.myMutex.Unlock()
-		return nil
-	}
-
+	response.Done = reply.Done
+	return nil
 }
 
 func (s *Server) sendToOtherServers(message Message, response *Response) { //Sending the message in multicast
 
+	var wg sync.WaitGroup
+	wg.Add(len(addresses.Addresses))
+	int1 := 0
+	log.Printf("Ho addato numero semafori: %d\n", len(addresses.Addresses))
 	for _, address := range addresses.Addresses {
 
 		addr := address
 
-		go func(addr string, msg Message) error { //
-
+		go func(addr string, msg Message) error {
+			log.Printf("Go routine numero %d\n", int1)
+			defer wg.Done()
 			for {
 				client, err := rpc.Dial("tcp", addr)
 				if err != nil {
@@ -47,15 +47,14 @@ func (s *Server) sendToOtherServers(message Message, response *Response) { //Sen
 				reply := Response{Done: false}
 
 				if err1 := client.Call("Server.SaveElement", msg, &reply); err1 != nil {
-					response.ResponseChannel <- false
+					return err
 				}
 
 				if reply.Done == false {
-					response.ResponseChannel <- false
+					response.Done = false
 				}
 
 				response.Done = true
-				response.ResponseChannel <- true
 				return nil
 			}
 		}(addr.Addr, message)
@@ -77,37 +76,46 @@ func (s *Server) SaveElement(message Message, result *Response) error {
 
 	//Now I send the ACK in multicast
 	messageAck := AckMessage{Element: message, MyServerId: MyId}
-	for _, address := range addresses.Addresses { //Iterating on the various server
-		go func(addr string) {
+	var wg sync.WaitGroup
+	wg.Add(len(addresses.Addresses))
+	for _, address := range addresses.Addresses {
+		//Iterating on the various server
+		reply := &Response{
+			Done: false,
+			myCh: false,
+		}
 
+		go func(addr string, reply *Response) {
 			for {
-
 				client, err := rpc.Dial("tcp", addr)
 				if err != nil {
 					log.Fatal("Error dialing: ", err)
 				}
-				reply := &Response{
-					Done: false,
-				}
-				//if MyId == 3 {
-				//	time.Sleep(3000 * time.Millisecond)
-				//}
+
 				err = client.Call("Server.SendAck", messageAck, reply)
 				if err != nil {
 					log.Fatalf("Error sending ack at server %d: %v", message.ServerId, err)
 				}
 
 				if reply.Done == false { //If the other server doesn't accept the ACK
-					time.Sleep(1 * time.Second) //Wait 2 second and retry
+					time.Sleep(1 * time.Second) //Wait 1 second and retry
 					continue                    //Retry
 				}
 				if reply.Done == true {
 					result.Done = true
+
+					if reply.myCh == true {
+						result.myCh = true
+					} else {
+						result.myCh = false
+					}
 					break
 				}
 			}
-		}(address.Addr)
+		}(address.Addr, reply)
+
 	}
+	wg.Done()
 	return nil
 }
 
@@ -125,10 +133,12 @@ func (s *Server) SendAck(message AckMessage, reply *Response) error {
 
 			fmt.Printf("This Ack is sending by: %d at: %s\n", message.MyServerId, formattedTime)
 			myValue.numberAck++
-			reply.Done = true
 			//Checking if the message is deliverable to the application
+			reply.myCh = false
+
 			if s.localQueue[0] == myValue && myValue.numberAck == len(addresses.Addresses) {
 
+				fmt.Printf("Pongo a true reply.MyCh :%v\n", reply.myCh)
 				if message.Element.OperationType == 1 {
 					s.removeFromQueue(*myValue)
 					s.printDataStore(s.dataStore)
@@ -137,12 +147,14 @@ func (s *Server) SendAck(message AckMessage, reply *Response) error {
 					s.removeFromQueueDeleting(*myValue)
 					s.printDataStore(s.dataStore)
 				}
-			}
 
+			}
+			fmt.Printf("Setto a true reply.Done: %s\n", formattedTime)
+			reply.myCh = true
+			reply.Done = true
 			s.myMutex.Unlock()
 			return nil
 		}
-		s.myMutex.Unlock()
 	}
 	reply.Done = false //The server can't find the message in his queue
 	s.myMutex.Unlock()
