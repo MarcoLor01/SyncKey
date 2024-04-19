@@ -24,14 +24,14 @@ func main() {
 		myServer = serverOperation.CreateNewSequentialDataStore() //Create a new Server
 	} else if *actionToDo == "caus" {
 		myServer = serverOperation.CreateNewCausalDataStore()
-		fmt.Printf("Lunghezza inizializzazione: %d\n\n", len(myServer.MyClock))
+
 	} else {
-		fmt.Println("3")
 		fmt.Println("Error value for the flag")
 		return
 	}
 	addr := "localhost:" + "1234" //My address
 	serverOperation.MyId = 1      //My id
+
 	server := rpc.NewServer()
 	err := server.Register(myServer) //Registering my server
 

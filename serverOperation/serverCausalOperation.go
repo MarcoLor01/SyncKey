@@ -20,57 +20,66 @@ func (s *Server) CausalSendElement(message Message, reply *Response) error {
 	}
 
 	s.sendToOtherServersCausal(message, response)
-	reply.Done = true
+
+	fmt.Println(response.Done)
+	reply.Done = response.Done
+
 	return nil
 }
 
 func (s *Server) sendToOtherServersCausal(message Message, response *Response) {
 
+	ch := make(chan bool, len(addresses.Addresses))
 	var wg sync.WaitGroup
 	wg.Add(len(addresses.Addresses))
-	int1 := 0
+
 	for _, address := range addresses.Addresses {
-
-		addr := address
-
-		go func() {
-			err := func(addr string, msg Message) error { //
-				wg.Done()
-				log.Printf("Go routine number %d\n", int1)
-				int1++
-				for {
-					client, err := rpc.Dial("tcp", addr)
-					if err != nil {
-
-						return err
-					}
-
-					reply := Response{Done: false}
-
-					if err1 := client.Call("Server.SaveElementCausal", msg, &reply); err1 != nil {
-						return err1
-					}
-
-					if reply.Done == false {
-						response.Done = false
-					}
-
-					response.Done = true
-					return nil
-				}
-			}(addr.Addr, message)
-
+		go func(address ServerAddress, ch chan bool) {
+			defer wg.Done()
+			client, err := rpc.Dial("tcp", address.Addr)
 			if err != nil {
-				log.Fatal("Fatal error in sendToOtherSeversCausal operation ", err)
+				log.Fatal("Errore durante la connessione RPC:", err)
+				return
 			}
-		}()
+			defer func(client *rpc.Client) {
+				err := client.Close()
+				if err != nil {
+
+				}
+			}(client)
+
+			reply := &Response{Done: false}
+			if err := client.Call("Server.SaveElementCausal", message, reply); err != nil {
+				log.Fatal("Errore durante la chiamata RPC:", err)
+				return
+			}
+			select {
+			case ch <- reply.Done:
+			default:
+				fmt.Println("Il canale è stato chiuso prima che potesse essere inviato")
+			}
+		}(address, ch)
 	}
+
+	wg.Wait()
+	close(ch)
+
+	for i := range ch {
+		if i {
+			response.Done = true
+			return
+		}
+	}
+	response.Done = false
 }
 
 func (s *Server) SaveElementCausal(message Message, reply *Response) error {
 
-	s.myMutex.Lock()
-	defer s.myMutex.Unlock()
+	if message.ServerId != MyId {
+		s.myMutex.Lock()
+		defer s.myMutex.Unlock()
+	}
+
 	fmt.Println(message.VectorTimestamp)
 	var wg sync.WaitGroup
 	s.addToQueue(message)
@@ -79,9 +88,11 @@ func (s *Server) SaveElementCausal(message Message, reply *Response) error {
 		wg.Add(len(s.localQueue))
 		go func(message2 Message) {
 			defer wg.Done()
+
 			var mod bool
 			for {
 				if MyId == message2.ServerId {
+
 					mod = message2.VectorTimestamp[message2.ServerId-1] == s.MyClock[message2.ServerId-1]
 				} else {
 					mod = message2.VectorTimestamp[message2.ServerId-1] == s.MyClock[message2.ServerId-1]+1
@@ -94,30 +105,31 @@ func (s *Server) SaveElementCausal(message Message, reply *Response) error {
 						}
 						if ts > s.MyClock[index] {
 							reply.Done = false // Non è deliverable
+							fmt.Println("The message is not deliverable")
 							return
 						}
 					}
+
 					reply.Done = true
-				}
+					fmt.Println("The message is deliverable")
+					s.removeFromQueue(message2)
+					s.printDataStore(s.dataStore)
 
-				fmt.Println("The message is deliverable")
-				s.removeFromQueue(message2)
-				s.printDataStore(s.dataStore)
-
-				for ind, ts := range message2.VectorTimestamp {
-					if ts > s.MyClock[ind] {
-						s.MyClock[ind] = ts
+					for ind, ts := range message2.VectorTimestamp {
+						if ts > s.MyClock[ind] {
+							s.MyClock[ind] = ts
+						}
 					}
+				} else {
+					fmt.Println("The message is not deliverable")
 				}
 
-				fmt.Println("My new timestamp:", s.MyClock)
+				fmt.Println("My actual timestamp:", s.MyClock)
 				return
 			}
 
 		}(*message2)
-
 	}
-	fmt.Printf("Rilascio lock")
 	wg.Wait()
 	return nil
 }
