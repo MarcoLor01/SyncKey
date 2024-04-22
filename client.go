@@ -68,8 +68,7 @@ func main() {
 		n2 := os.Args[4] //Value
 		scalarClock := 0
 		log.Printf("Adding element with Key: %s, and Value: %s\n contacting %s", n1, n2, config.Address[serverNumber].Addr)
-		args := serverOperation.Message{Key: n1, Value: n2, ScalarTimestamp: scalarClock /*VectorTimestamp: make([]int, serverNumber)*/, OperationType: 1}
-
+		args := serverOperation.Message{Key: n1, Value: n2, ScalarTimestamp: scalarClock, VectorTimestamp: make([]int, len(config.Address)), OperationType: 1}
 		log.Printf("Synchronous call to RPC server")
 
 		result := &serverOperation.Response{
@@ -77,7 +76,7 @@ func main() {
 		}
 
 		log.Printf("Wait...")
-		err = client.Call("Server.AddElement", args, &result) //Calling the AddElement routine
+		err = client.Call("Server.ChoiceConsistency", args, &result) //Calling the AddElement routine
 		if err != nil {
 			log.Fatal("Error adding the element to db, error: ", err)
 		}

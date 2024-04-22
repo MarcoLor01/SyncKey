@@ -28,44 +28,47 @@ func (s *Server) AddElement(message Message, response *Response) error { //Reque
 func (s *Server) sendToOtherServers(message Message, response *Response) { //Sending the message in multicast
 
 	var wg sync.WaitGroup
-	wg.Add(len(addresses.Addresses))
-	int1 := 0
-	log.Printf("Ho addato numero semafori: %d\n", len(addresses.Addresses))
+
 	for _, address := range addresses.Addresses {
-
 		addr := address
+		wg.Add(1)
+		go func() {
+			err := func(addr string, msg Message) error {
+				defer wg.Done()
 
-		go func(addr string, msg Message) error {
-			log.Printf("Go routine numero %d\n", int1)
-			int1++
-			defer wg.Done()
-			for {
-				client, err := rpc.Dial("tcp", addr)
-				if err != nil {
-					return err
+				for {
+					client, err := rpc.Dial("tcp", addr)
+					if err != nil {
+
+						return err
+					}
+
+					reply := &Response{Done: false}
+
+					if err1 := client.Call("Server.SaveElement", msg, reply); err1 != nil {
+						return err
+					}
+
+					if reply.Done == false {
+						response.Done = false
+					}
+
+					response.Done = true
+					return nil
 				}
-
-				reply := Response{Done: false}
-
-				if err1 := client.Call("Server.SaveElement", msg, &reply); err1 != nil {
-					return err
-				}
-
-				if reply.Done == false {
-					response.Done = false
-				}
-
-				response.Done = true
-				return nil
+			}(addr.Addr, message)
+			if err != nil {
+				log.Fatal("Error in sendToOtherServers function: ", err)
 			}
-		}(addr.Addr, message)
+		}()
 	}
+	wg.Wait()
 }
 
 func (s *Server) SaveElement(message Message, result *Response) error {
 
-	s.myMutex.Lock()
-	defer s.myMutex.Unlock()
+	s.lockIfNeeded(message.ServerId) //Lock the mutex if the serverId is different from MyId
+
 	if message.ServerId != MyId { //I update my clock only if I'm not the sender
 		if message.ScalarTimestamp > s.MyScalarClock {
 			s.MyScalarClock = message.ScalarTimestamp

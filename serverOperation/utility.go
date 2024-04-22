@@ -49,16 +49,6 @@ func InitializeServerList() {
 	}
 }
 
-//Function for printing all the elements in the queue
-
-//func printQueue(queue []*Message) {
-//	fmt.Print("Printing the elements in the queue: ")
-//	for _, element := range queue {
-//		fmt.Print(*element, " ")
-//	}
-//}
-//
-
 func (s *Server) removeFromQueue(message Message) {
 
 	i := 0

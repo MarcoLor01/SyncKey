@@ -1,6 +1,7 @@
 package serverOperation
 
 import (
+	"log"
 	"sync"
 )
 
@@ -43,6 +44,7 @@ type Server struct {
 	MyClock       []int //Vector Clock
 	MyScalarClock int   //Scalar Clock
 	myMutex       sync.Mutex
+	modality      int //Modality == 0 : Sequential consistency, Modality == 1 : Causal consistency
 } //I want to use this structure with causal and sequential consistent
 
 func CreateNewSequentialDataStore() *Server {
@@ -51,28 +53,38 @@ func CreateNewSequentialDataStore() *Server {
 		localQueue:    make([]*Message, 0),
 		dataStore:     make(map[string]string),
 		MyScalarClock: 0, //Initial Clock
+		modality:      0, //Sequential consistency
 	}
 } //Creation of a new DataStore that supports sequential consistency
 
 func CreateNewCausalDataStore() *Server {
 
 	return &Server{
-		localQueue:    make([]*Message, 0),
-		MyClock:       make([]int, len(addresses.Addresses)), //My vectorial Clock
-		dataStore:     make(map[string]string),
-		MyScalarClock: -1, //I don't use it
+		localQueue: make([]*Message, 0),
+		MyClock:    make([]int, len(addresses.Addresses)), //My vectorial Clock
+		dataStore:  make(map[string]string),
+		modality:   1, //Causal Consistency
 	}
 
 } //Creation of a new DataStore that supports causal consistency
 
-func (s *Server) ChoiceConsistency(serverType int) {
+func (s *Server) ChoiceConsistency(message Message, reply *Response) error { //Function that chooses the consistency of the server
 
-	serverType = -1
-	if s.MyScalarClock == -1 {
-		serverType = 0 //Causal consistency
+	response := &Response{
+		Done: false,
 	}
-	if s.MyScalarClock != -1 {
-		serverType = 1 //If i have initialized the scalarClock the server is using the sequential consistency
+	if s.modality == 0 { //Sequential Consistency
+		err := s.AddElement(message, response)
+		if err != nil {
+			log.Fatal("Error in adding the element to the db: ", err)
+		}
+	} else {
+		err := s.CausalSendElement(message, response) //Causal Consistency
+		if err != nil {
+			log.Fatal("Error in adding the element to the db: ", err)
+		}
 	}
 
+	reply.Done = response.Done //Set the answer for the Client with the response.Done
+	return nil
 }
