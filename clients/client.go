@@ -67,24 +67,36 @@ func main() {
 	if err != nil {
 		log.Fatal("Error in dialing: ", err)
 	}
+	var actionToDo string
 
-	actionToDo := flag.String("a", "not specified", "action") //Define a flag, with that
-	//the user can specify what he wants to do
-	flag.Parse()
+	if configuration == "0" {
+		actionToDo = *flag.String("a", "not specified", "action") //Define a flag, with that
+		//the user can specify what he wants to do
+		flag.Parse()
+	} else if configuration == "1" {
+		actionToDo = os.Getenv("OPERATION")
+	}
 
-	if *actionToDo == "not specified" {
+	if actionToDo == "not specified" {
 		log.Printf("When you call the datastore you have to specify the action with -a (action): \n-a put with key and value for a put operation, \n-a get with the key for a get operation, \n-a delete with the key for a delete operation\n")
 		os.Exit(-1)
 		//--------------------------------------PUT CASE--------------------------------------//
-	} else if *actionToDo == "put" {
+	} else if actionToDo == "put" {
 
 		if len(os.Args) < 5 { //The procedure requests 3 arguments + 2 arguments from flag
 			log.Printf("No args passed in\n")
 			os.Exit(1)
 		}
+		var n1, n2 string
 
-		n1 := os.Args[3] //Key
-		n2 := os.Args[4] //Value
+		if configuration == "0" {
+			n1 = os.Args[3] //Key
+			n2 = os.Args[4] //Value
+
+		} else if configuration == "1" {
+			n1 = os.Getenv("KEY")
+			n2 = os.Getenv("VALUE")
+		}
 
 		scalarClock := 0
 		log.Printf("Adding element with Key: %s, and Value: %s\n contacting %s", n1, n2, config.Address[serverNumber].Addr) // make([]int, len(config.Address)),
@@ -113,7 +125,7 @@ func main() {
 		log.Println(value)
 		//--------------------------------------DELETE CASE--------------------------------------//
 
-	} else if *actionToDo == "delete" {
+	} else if actionToDo == "delete" {
 		if len(os.Args) < 3 { //The procedure requests 1 arguments + 2 arguments from flag
 			log.Printf("No args passed in\n")
 			os.Exit(1)
@@ -147,7 +159,7 @@ func main() {
 		}
 		log.Println(value)
 		//--------------------------------------GET CASE--------------------------------------//
-	} else if *actionToDo == "get" {
+	} else if actionToDo == "get" {
 
 		if len(os.Args) < 3 { //I need three parameters, 2 for the flag -a and 1 for the get operation<
 			log.Printf("No args passsed in\n")

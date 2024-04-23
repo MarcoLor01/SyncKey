@@ -12,12 +12,20 @@ import (
 
 func main() {
 	var myServer *serverOperation.Server
-	actionToDo := flag.String("m", "", "action")
-	flag.Parse()
+
+	var actionToDo string
+	configuration := os.Getenv("CONFIG")
+
+	if configuration == "1" {
+		actionToDo = os.Getenv("MOD")
+	} else if configuration == "0" {
+		actionToDo = *flag.String("m", "", "action")
+		flag.Parse()
+	}
 
 	serverOperation.InitializeServerList()
 
-	switch *actionToDo {
+	switch actionToDo {
 	case "seq":
 		myServer = serverOperation.CreateNewSequentialDataStore()
 	case "caus":
@@ -26,6 +34,7 @@ func main() {
 		fmt.Println("Specify the modality with -m: seq for sequential consistency, caus for causal consistency")
 		os.Exit(-1)
 	}
+
 	addr := "localhost:" + "3456"
 	serverOperation.MyId = 3
 	server := rpc.NewServer()
