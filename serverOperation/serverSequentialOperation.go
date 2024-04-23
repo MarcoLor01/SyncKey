@@ -81,9 +81,10 @@ func (s *Server) SaveElement(message Message, result *Response) error {
 	//Now I send the ACK in multicast
 	messageAck := AckMessage{Element: message, MyServerId: MyId}
 	var wg sync.WaitGroup
-	wg.Add(len(addresses.Addresses))
+
 	for _, address := range addresses.Addresses {
 		//Iterating on the various server
+		wg.Add(1)
 		reply := &Response{
 			Done: false,
 			myCh: false,
@@ -126,6 +127,7 @@ func (s *Server) SaveElement(message Message, result *Response) error {
 func (s *Server) SendAck(message AckMessage, reply *Response) error {
 
 	s.myMutex.Lock()
+
 	for _, myValue := range s.localQueue { //Iteration over the queue
 
 		if message.Element.Value == myValue.Value &&
@@ -137,12 +139,12 @@ func (s *Server) SendAck(message AckMessage, reply *Response) error {
 
 			fmt.Printf("This Ack is sending by: %d at: %s\n", message.MyServerId, formattedTime)
 			myValue.numberAck++
+
 			//Checking if the message is deliverable to the application
 			reply.myCh = false
 
 			if s.localQueue[0] == myValue && myValue.numberAck == len(addresses.Addresses) {
 
-				fmt.Printf("Pongo a true reply.MyCh :%v\n", reply.myCh)
 				if message.Element.OperationType == 1 {
 					s.removeFromQueue(*myValue)
 					s.printDataStore(s.dataStore)
@@ -153,13 +155,14 @@ func (s *Server) SendAck(message AckMessage, reply *Response) error {
 				}
 
 			}
-			fmt.Printf("Setto a true reply.Done: %s\n", formattedTime)
+
 			reply.myCh = true
 			reply.Done = true
 			s.myMutex.Unlock()
 			return nil
 		}
 	}
+
 	reply.Done = false //The server can't find the message in his queue
 	s.myMutex.Unlock()
 	return nil

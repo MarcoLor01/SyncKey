@@ -1,0 +1,19 @@
+#Latest version of Go
+FROM golang:latest
+
+# Set the Current Working Directory inside the container
+WORKDIR /app
+
+# Copy go mod file
+COPY go.mod .
+COPY common/serversAddr.json .
+
+RUN go mod download
+
+COPY . .
+
+# Expose port 8080 to the outside world
+EXPOSE 8080
+
+# Command to run the executable
+ENTRYPOINT ["go", "run", "clients/client.go"]

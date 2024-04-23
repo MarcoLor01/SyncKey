@@ -73,6 +73,7 @@ func (s *Server) ChoiceConsistency(message Message, reply *Response) error { //F
 	response := &Response{
 		Done: false,
 	}
+
 	if s.modality == 0 { //Sequential Consistency
 		err := s.AddElement(message, response)
 		if err != nil {

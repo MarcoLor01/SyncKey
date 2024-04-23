@@ -1,0 +1,15 @@
+FROM golang:latest
+
+WORKDIR /app
+
+COPY go.mod .
+COPY serverOperation .
+COPY common/serversAddr.json .
+
+RUN go mod download
+
+COPY . .
+
+EXPOSE 8081
+
+ENTRYPOINT ["go", "run", "servers/server1.go"]

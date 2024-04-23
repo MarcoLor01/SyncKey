@@ -53,6 +53,13 @@ func (s *Server) sendToOtherServersCausal(message Message, response *Response) {
 func (s *Server) sendToSingleServer(address ServerAddress, message Message, ch chan bool, wg *sync.WaitGroup) { //Function that sends the message to a single server
 	defer wg.Done() //Decrease the WaitGroup counter when the function ends
 
+	//-----TESTING-------//
+	//if MyId == 1 && address.Id == 3 {
+	//	fmt.Println("I'm not sending to the server 3, sleeping...")
+	//	time.Sleep(40 * time.Second)
+	//}
+	//-----TESTING-------//
+
 	client, err := rpc.Dial("tcp", address.Addr) //Dial the server
 	if err != nil {
 		log.Fatal("Connection RPC error:", err)
@@ -66,8 +73,9 @@ func (s *Server) sendToSingleServer(address ServerAddress, message Message, ch c
 
 	}(client) //Close the connection when the function ends
 
-	reply := &Response{Done: false}                                                 //Create a new response
-	if err := client.Call("Server.SaveElementCausal", message, reply); err != nil { //Call the SaveElementCausal function
+	reply := &Response{Done: false} //Create a new response
+
+	if err1 := client.Call("Server.SaveElementCausal", message, reply); err1 != nil { //Call the SaveElementCausal function
 		log.Fatal("RPC call error:", err)
 		return
 	}
@@ -80,7 +88,7 @@ func (s *Server) sendToSingleServer(address ServerAddress, message Message, ch c
 }
 
 func (s *Server) checkResponses(ch chan bool) bool { //Function that checks the responses
-	for response := range ch { //For each response in the channel
+	for response := range ch {                       //For each response in the channel
 		if response {
 			return true
 		}
@@ -109,7 +117,9 @@ func (s *Server) processMessages(message Message, reply *Response) {
 	var wg sync.WaitGroup
 	s.addToQueue(message) //Add the message to the queue
 
-	for _, message2 := range s.localQueue {
+	for i := len(s.localQueue) - 1; i >= 0; i-- {
+		message2 := s.localQueue[i]
+		fmt.Println("Message in the queue:", message2.VectorTimestamp)
 		wg.Add(1)                                          //Add a new goroutine
 		go s.checkAndProcessMessage(*message2, reply, &wg) //Check and process the message
 	}
@@ -123,13 +133,13 @@ func (s *Server) checkAndProcessMessage(message Message, reply *Response, wg *sy
 
 		s.processDeliverableMessage(message, reply) //Process the message
 	} else {
-		fmt.Println("The message is not deliverable")
+		fmt.Printf("The message is not deliverable: %d\n , My clock: %d\n", message.VectorTimestamp, s.MyClock)
 	}
 }
 
 func (s *Server) isMessageDeliverable(message Message) bool {
 	var mod bool //Variable that checks if the message is deliverable
-	fmt.Println(MyId, message.ServerId)
+
 	if MyId == message.ServerId { //If the serverId is equal to MyId
 		fmt.Println(message.VectorTimestamp, s.MyClock)
 		mod = message.VectorTimestamp[message.ServerId-1] == s.MyClock[message.ServerId-1] //I increased my counter before
@@ -152,11 +162,13 @@ func (s *Server) isMessageDeliverable(message Message) bool {
 }
 
 func (s *Server) processDeliverableMessage(message Message, reply *Response) {
-	reply.Done = true //Set the response to true
+	s.updateTimestamp(message) //Update the timestamp
+	reply.Done = true          //Set the response to true
 	fmt.Println("The message is deliverable")
+
 	s.removeFromQueue(message)    //Remove the message from the queue
 	s.printDataStore(s.dataStore) //Print the data store
-	s.updateTimestamp(message)    //Update the timestamp
+
 	fmt.Println("My actual timestamp:", s.MyClock)
 }
 

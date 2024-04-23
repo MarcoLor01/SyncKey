@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"flag"
+	"github.com/joho/godotenv"
 	"log"
 	"main/serverOperation"
 	"math/rand"
@@ -22,9 +23,26 @@ type Config struct {
 
 func main() {
 
-	fileContent, err := os.ReadFile("serversAddr.json")
+	err := godotenv.Load()
 	if err != nil {
-		log.Fatal("Error reading file:", err) //Reading the address from the json file
+		log.Fatalf("Error loading .env file: %v", err)
+	}
+
+	configuration := os.Getenv("CONFIG")
+
+	var filePath string
+
+	if configuration == "1" {
+		filePath = "serversAddr.json"
+	} else if configuration == "2" {
+		filePath = "../serversAddr.json"
+	} else {
+		log.Fatalf("Error loading the configuration file: CONFIG is set to '%s'", configuration)
+	}
+
+	fileContent, err := os.ReadFile(filePath)
+	if err != nil {
+		log.Fatal("Error reading file:", err)
 		return
 	}
 
@@ -37,7 +55,7 @@ func main() {
 
 	serverNumber := rand.Intn(len(config.Address) - 1) //The server that I have to contact
 
-	client, err := rpc.Dial("tcp", config.Address[serverNumber].Addr)
+	client, err := rpc.Dial("tcp", config.Address[1].Addr)
 
 	defer func(client *rpc.Client) {
 		err1 := client.Close()
@@ -64,10 +82,13 @@ func main() {
 			log.Printf("No args passed in\n")
 			os.Exit(1)
 		}
+
 		n1 := os.Args[3] //Key
 		n2 := os.Args[4] //Value
+
 		scalarClock := 0
-		log.Printf("Adding element with Key: %s, and Value: %s\n contacting %s", n1, n2, config.Address[serverNumber].Addr)
+		log.Printf("Adding element with Key: %s, and Value: %s\n contacting %s", n1, n2, config.Address[serverNumber].Addr) // make([]int, len(config.Address)),
+
 		args := serverOperation.Message{Key: n1, Value: n2, ScalarTimestamp: scalarClock, VectorTimestamp: make([]int, len(config.Address)), OperationType: 1}
 		log.Printf("Synchronous call to RPC server")
 
