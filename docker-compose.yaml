@@ -1,0 +1,89 @@
+version: '3.7'
+
+
+services:
+
+  server1:
+    build:
+      context: .
+      dockerfile: DockerfileServer
+    stdin_open: true
+    ports:
+      - "8082:8082"
+    networks:
+      - mynet
+    environment:
+      - MOD
+
+  server2:
+    build:
+      context: .
+      dockerfile: DockerfileServer
+    stdin_open: true
+    ports:
+      - "8083:8083"
+    networks:
+      - mynet
+    environment:
+      - MOD
+
+  server3:
+    build:
+      context: .
+      dockerfile: DockerfileServer
+    stdin_open: true
+    ports:
+      - "8084:8084"
+    networks:
+      - mynet
+    environment:
+      - MOD
+
+  server4:
+    build:
+      context: .
+      dockerfile: DockerfileServer
+    stdin_open: true
+    ports:
+      - "8085:8085"
+    networks:
+      - mynet
+    environment:
+      - MOD
+
+  server5:
+    build:
+      context: .
+      dockerfile: DockerfileServer
+    stdin_open: true
+    ports:
+      - "8086:8086"
+    networks:
+      - mynet
+    environment:
+      - MOD
+
+  client:
+    build:
+        context: .
+        dockerfile: DockerfileClient
+    stdin_open: true
+
+    depends_on:
+      - server1
+      - server2
+      - server3
+      - server4
+      - server5
+    ports:
+      - "8080:8080"
+    networks:
+      - mynet
+    environment:
+      - KEY
+      - VALUE
+      - OPERATION
+
+networks:
+  mynet:
+    driver: bridge
