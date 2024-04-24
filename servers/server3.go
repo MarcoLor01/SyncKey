@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/joho/godotenv"
 	"log"
 	"main/serverOperation"
 	"net"
@@ -13,19 +14,26 @@ import (
 func main() {
 	var myServer *serverOperation.Server
 
-	var actionToDo string
+	var actionToDo *string
+
+	err1 := godotenv.Load("../.env")
+	if err1 != nil {
+		log.Fatalf("Error loading .env file: %v", err1)
+	}
+
 	configuration := os.Getenv("CONFIG")
 
-	if configuration == "1" {
-		actionToDo = os.Getenv("MOD")
-	} else if configuration == "0" {
-		actionToDo = *flag.String("m", "", "action")
+	if configuration == "2" {
+		action := os.Getenv("MOD")
+		actionToDo = &action
+	} else if configuration == "1" {
+		actionToDo = flag.String("m", "", "action")
 		flag.Parse()
 	}
 
 	serverOperation.InitializeServerList()
 
-	switch actionToDo {
+	switch *actionToDo {
 	case "seq":
 		myServer = serverOperation.CreateNewSequentialDataStore()
 	case "caus":

@@ -32,16 +32,16 @@ func (s *Server) addToQueue(message Message) {
 
 func InitializeServerList() {
 
-	err := godotenv.Load()
+	err := godotenv.Load("../.env")
 	if err != nil {
-		log.Fatalf("Error loading .env file: %v", err)
+		log.Fatalf("Error loading .env file: %v\n%+v", err, err)
 	}
 	config := os.Getenv("CONFIG")
 
 	var filePath string
 
 	if config == "1" {
-		filePath = "serversAddr.json"
+		filePath = "../serversAddr.json"
 	} else if config == "2" {
 		filePath = "../serversAddr.json"
 	} else {

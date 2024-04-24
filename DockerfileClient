@@ -6,7 +6,7 @@ WORKDIR /app
 
 # Copy go mod file
 COPY go.mod .
-COPY common/serversAddr.json .
+COPY serversAddr.json .
 
 RUN go mod download
 
