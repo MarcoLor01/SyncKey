@@ -1,0 +1,24 @@
+{
+  "address": [
+    {
+      "id": 1,
+      "addr": "server1:8082"
+    },
+    {
+      "id": 2,
+      "addr": "server2:8083"
+    },
+    {
+      "id": 3,
+      "addr": "server3:8084"
+    },
+    {
+      "id": 4,
+      "addr": "server4:8085"
+    },
+    {
+      "id": 5,
+      "addr": "server5:8086"
+    }
+  ]
+}

@@ -16,7 +16,8 @@ func main() {
 
 	var actionToDo *string
 
-	path := os.Getenv("ENV_PATH")
+	path := os.Getenv("ENV_PATH") //Prendo il path del file .env, che cambia in base
+	//a se sto usando la configurazione locale o quella docker
 	err1 := godotenv.Load(path)
 	if err1 != nil {
 		log.Fatal("Error loading .env file")
@@ -25,7 +26,9 @@ func main() {
 	configuration := os.Getenv("CONFIG")
 
 	var address string
-	if configuration == "2" {
+	if configuration == "2" { //Se sto usando la configurazione docker recupero la
+		//modalità in cui il server deve essere eseguito tramite la variabile
+		//d'ambiente MOD
 		action := os.Getenv("MOD")
 		actionToDo = &action
 		address = "server1:8082"
@@ -47,15 +50,15 @@ func main() {
 		os.Exit(-1)
 	}
 
-	serverOperation.MyId = 1 //My id
+	serverOperation.MyId = 1 //Imposto il mio Id che deve essere univoco per ogni server
 
-	server := rpc.NewServer()        //Creating a new server
-	err := server.Register(myServer) //Registering my server
+	server := rpc.NewServer()
+	err := server.Register(myServer)
 
 	if err1 != nil {
 		log.Fatal("Format of service SyncKey is not correct: ", err)
 	}
-	lis, err := net.Listen("tcp", address) //Listening the requests
+	lis, err := net.Listen("tcp", address)
 	if err != nil {
 		log.Fatal("Error while starting RPC server: ", err)
 	}

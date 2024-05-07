@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"net/rpc"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -23,14 +24,15 @@ type Config struct {
 
 func main() {
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(10 * time.Second) //Attendo che i server siano pronti
 
 	err := godotenv.Load("../.env")
 	if err != nil {
 		log.Fatal("Error loading .env file", err)
 	}
 
-	configuration := os.Getenv("CONFIG")
+	configuration := os.Getenv("CONFIG") //Carico il valore della variabile d'ambiente CONFIG,
+	//che mi dice se sto usando la configurazione locale (CONFIG = 1) o quella docker (CONFIG = 2)
 	var filePath string
 
 	if configuration == "1" {
@@ -52,7 +54,8 @@ func main() {
 		log.Fatal("Error in JSON decode:", err1)
 		return
 	}
-	//I want a random ID between 1-5 (the number of the servers)
+	//Prendo un valore random compreso tra 0 e il numero di server - 1,
+	//così da poter contattare un server randomicamente
 
 	serverNumber := rand.Intn(len(config.Address) - 1) //The server that I have to contact
 
@@ -79,23 +82,43 @@ func main() {
 				log.Fatal(err)
 			}
 
-			if actionToDo == "put" || actionToDo == "delete" {
-				fmt.Print("Enter key: ")
-				_, err = fmt.Scan(&key)
-				if err != nil {
-					log.Fatal(err)
+			if actionToDo == "put" || actionToDo == "delete" { //Se devo inserire o eliminare un elemento dal datastore,
+				//devo ricevere la Key dall'utente, che non può essere vuota
+				for {
+					fmt.Print("Enter key: ")
+					_, err = fmt.Scan(&key)
+					if err != nil {
+						log.Fatal(err)
+					}
+					if key != "" {
+						break
+					}
+					fmt.Println("Key cannot be an empty string. Please enter a valid key.")
 				}
 			}
 
-			if actionToDo == "put" {
-				fmt.Print("Enter value: ")
-				_, err = fmt.Scan(&value)
-				if err != nil {
-					log.Fatal(err)
+			if actionToDo == "put" { //Se l'utente ha scelto di inserire un elemento nel datastore, deve inoltre fornirmi
+				//il valore da associare alla Key, che non può essere vuoto
+				for {
+					fmt.Print("Enter value: ")
+					_, err = fmt.Scan(&value)
+					if err != nil {
+						log.Fatal(err)
+					}
+					if value != "" {
+						break
+					}
+					fmt.Println("Value cannot be an empty string. Please enter a valid value.")
 				}
 			}
+
 		} else if configuration == "2" {
 			actionToDo = os.Getenv("OPERATION")
+			fmt.Print("Enter value: ")
+			_, err = fmt.Scan(&value)
+			if err != nil {
+				log.Fatal(err)
+			}
 		}
 
 		if actionToDo == "not specified" {
@@ -114,10 +137,9 @@ func main() {
 				n2 = os.Getenv("VALUE")
 			}
 
-			scalarClock := 0
 			log.Printf("Adding element with Key: %s, and Value: %s\n contacting %s", n1, n2, config.Address[serverNumber].Addr) // make([]int, len(config.Address)),
 
-			args := serverOperation.Message{Key: n1, Value: n2, ScalarTimestamp: scalarClock, VectorTimestamp: make([]int, len(config.Address)), OperationType: 1}
+			args := serverOperation.Message{Key: n1, Value: n2, VectorTimestamp: make([]int, len(config.Address)), OperationType: 1}
 			log.Printf("Synchronous call to RPC server")
 
 			result := &serverOperation.Response{
@@ -132,6 +154,8 @@ func main() {
 			}
 			var val string
 
+			time.Sleep(1 * time.Second)
+
 			if result.Done == true {
 				val = "Successful"
 			} else {
@@ -143,11 +167,9 @@ func main() {
 		} else if actionToDo == "delete" {
 
 			n1 := key
-			scalarClock := 0
 
 			log.Printf("Get element with Key: %s\n", n1)
-			args := serverOperation.Message{Key: n1, ScalarTimestamp: scalarClock, OperationType: 2}
-
+			args := serverOperation.Message{Key: n1, VectorTimestamp: make([]int, len(config.Address)), OperationType: 2}
 			log.Printf("Synchronous call to RPC server")
 
 			result := &serverOperation.Response{
@@ -155,7 +177,7 @@ func main() {
 			}
 
 			log.Printf("Wait...")
-			err = client.Call("Server.AddElement", args, &result) //Calling the DeleteElement function
+			err = client.Call("Server.AddElement", args, &result)
 			if err != nil {
 				log.Fatal("Error adding the element to db, error: ", err)
 			}
@@ -174,11 +196,12 @@ func main() {
 
 			log.Printf("Synchronous call to RPC server")
 			log.Printf("Wait...")
-			err = client.Call("Server.GetElement", key, value) //Calling the DeleteElement function
+			err = client.Call("Server.GetElement", key, value)
 			if err != nil {
 				log.Fatal("Error adding the element to db, error: ", err)
 			}
 			time.Sleep(1 * time.Second)
+
 			if value != "" {
 				log.Printf("Element with Key %s, have value: %s", key, value)
 			} else {
@@ -197,9 +220,9 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+		continueRunning = strings.ToLower(continueRunning) // Convert to lowercase
 		if continueRunning != "yes" {
 			break
 		}
 	}
-
 }
