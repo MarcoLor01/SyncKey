@@ -2,7 +2,9 @@ package serverOperation
 
 import (
 	"encoding/json"
-	"github.com/joho/godotenv"
+	"fmt"
+	"time"
+
 	"log"
 	"os"
 	"sort"
@@ -12,19 +14,19 @@ import (
 
 func (s *Server) addToQueue(message Message) {
 	// Find the index to insert the message
-	for i, element := range s.localQueue {
+	for i, element := range s.LocalQueue {
 		if message.Key == element.Key {
-			s.localQueue[i] = &message // Add the message to the queue
+			s.LocalQueue[i] = &message // Add the message to the queue
 			return
 		}
 	}
 
 	// Insert the message at the end
-	s.localQueue = append(s.localQueue, &message)
+	s.LocalQueue = append(s.LocalQueue, &message)
 
 	// Sort the queue based on the scalar timestamp
-	sort.Slice(s.localQueue, func(i, j int) bool {
-		return s.localQueue[i].ScalarTimestamp < s.localQueue[j].ScalarTimestamp
+	sort.Slice(s.LocalQueue, func(i, j int) bool {
+		return s.LocalQueue[i].ScalarTimestamp < s.LocalQueue[j].ScalarTimestamp
 	})
 }
 
@@ -32,18 +34,14 @@ func (s *Server) addToQueue(message Message) {
 
 func InitializeServerList() {
 
-	err := godotenv.Load("../.env")
-	if err != nil {
-		log.Fatalf("Error loading .env file: %v\n%+v", err, err)
-	}
 	config := os.Getenv("CONFIG")
 
 	var filePath string
 
 	if config == "1" {
-		filePath = "../serversAddr.json"
+		filePath = "../serversAddrLocal.json"
 	} else if config == "2" {
-		filePath = "../serversAddr.json"
+		filePath = "./serversAddrDocker.json"
 	} else {
 		log.Fatalf("Error loading the configuration file: CONFIG is set to '%s'", config)
 	}
@@ -60,21 +58,42 @@ func InitializeServerList() {
 }
 
 func (s *Server) removeFromQueue(message Message) {
-	for i, msg := range s.localQueue { //I'm going to remove this message from my queue
+	for i, msg := range s.LocalQueue { //I'm going to remove this message from my queue
 		if message.Key == msg.Key && message.Value == msg.Value && message.ScalarTimestamp == msg.ScalarTimestamp { //I found the message
-			s.dataStore[msg.Key] = msg.Value                               //Insert message in my DS
-			s.localQueue = append(s.localQueue[:i], s.localQueue[i+1:]...) //Remove
+			s.DataStore[msg.Key] = msg.Value                               //Insert message in my DS
+			s.LocalQueue = append(s.LocalQueue[:i], s.LocalQueue[i+1:]...) //Remove
 			break
 		}
 	}
 }
 
 func (s *Server) removeFromQueueDeleting(message Message) {
-	for i, msg := range s.localQueue { //I'm going to remove this message from my queue
+	for i, msg := range s.LocalQueue { //I'm going to remove this message from my queue
 		if message.Key == msg.Key && message.Value == msg.Value && message.ScalarTimestamp == msg.ScalarTimestamp {
-			delete(s.dataStore, msg.Key)                                   //Delete the message from my DS
-			s.localQueue = append(s.localQueue[:i], s.localQueue[i+1:]...) //Remove
+			delete(s.DataStore, msg.Key)                                   //Delete the message from my DS
+			s.LocalQueue = append(s.LocalQueue[:i], s.LocalQueue[i+1:]...) //Remove
 			break
 		}
 	}
+}
+
+func (s *Server) printDataStore() {
+	time.Sleep(3 * time.Millisecond)
+	fmt.Printf("\n\n---------------DATASTORE---------------\n")
+	for key, value := range s.DataStore {
+		fmt.Printf("Key: %s, Value: %s\n", key, value)
+	}
+	fmt.Printf("\n---------------------------------------\n")
+}
+
+func (s *Server) checkResponses(ch chan bool) bool { //Function that checks the responses
+	counter := 0
+	for response := range ch { //If for one of the servers the message is deliverable, return true
+		if response {
+			counter++
+			fmt.Println("Counter: ", counter)
+			return true
+		}
+	}
+	return false
 }

@@ -2,13 +2,14 @@
 FROM golang:latest
 
 # Set the Current Working Directory inside the container
-WORKDIR /app
+WORKDIR /SyncKey
 
 # Copy go mod file
 COPY go.mod .
-COPY serversAddr.json .
+COPY serversAddrDocker.json .
+RUN go get -u github.com/joho/godotenv
+ENV ENV_PATH=./.env
 
-RUN go mod download
 
 COPY . .
 
@@ -16,4 +17,4 @@ COPY . .
 EXPOSE 8080
 
 # Command to run the executable
-ENTRYPOINT ["go", "run", "clients/client.go"]
+CMD ["sh", "-cx", "cd clients && go run client.go"]

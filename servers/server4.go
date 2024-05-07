@@ -16,19 +16,22 @@ func main() {
 
 	var actionToDo *string
 
-	err1 := godotenv.Load("../.env")
+	path := os.Getenv("ENV_PATH")
+	err1 := godotenv.Load(path)
 	if err1 != nil {
-		log.Fatalf("Error loading .env file: %v", err1)
+		log.Fatal("Error loading .env file")
 	}
 
 	configuration := os.Getenv("CONFIG")
-
+	var address string
 	if configuration == "2" {
 		action := os.Getenv("MOD")
 		actionToDo = &action
+		address = "server4:8085"
 	} else if configuration == "1" {
 		actionToDo = flag.String("m", "", "action")
 		flag.Parse()
+		address = "localhost:4567"
 	}
 
 	serverOperation.InitializeServerList()
@@ -43,14 +46,15 @@ func main() {
 		os.Exit(-1)
 	}
 
-	addr := "localhost:" + "4567"
-	serverOperation.MyId = 4
-	server := rpc.NewServer()
-	err := server.Register(myServer)
+	serverOperation.MyId = 4 //My id
+
+	server := rpc.NewServer()        //Creating a new server
+	err := server.Register(myServer) //Registering my server
+
 	if err != nil {
 		log.Fatal("Format of service SyncKey is not correct: ", err)
 	}
-	lis, err := net.Listen("tcp", addr)
+	lis, err := net.Listen("tcp", address) //Listening the requests
 	if err != nil {
 		log.Fatal("Error while starting RPC server: ", err)
 	}

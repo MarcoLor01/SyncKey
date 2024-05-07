@@ -15,10 +15,9 @@ type Message struct {
 	OperationType   int   //For put operation operationType is 1, for delete operation operationType 2
 } //Struct of a message between Servers
 
-type Response struct {
-	Done            bool
-	ResponseChannel chan bool
-	myCh            bool
+type Response struct { //Standard response from RPC
+	Done        bool
+	Deliverable bool
 }
 
 var MyId int //ID of this server
@@ -39,8 +38,8 @@ type ServerInformation struct {
 }
 
 type Server struct {
-	dataStore     map[string]string //The Key-Value Database
-	localQueue    []*Message
+	DataStore     map[string]string //The Key-Value Database
+	LocalQueue    []*Message
 	MyClock       []int //Vector Clock
 	MyScalarClock int   //Scalar Clock
 	myMutex       sync.Mutex
@@ -50,8 +49,8 @@ type Server struct {
 func CreateNewSequentialDataStore() *Server {
 
 	return &Server{
-		localQueue:    make([]*Message, 0),
-		dataStore:     make(map[string]string),
+		LocalQueue:    make([]*Message, 0),
+		DataStore:     make(map[string]string),
 		MyScalarClock: 0, //Initial Clock
 		modality:      0, //Sequential consistency
 	}
@@ -60,9 +59,9 @@ func CreateNewSequentialDataStore() *Server {
 func CreateNewCausalDataStore() *Server {
 
 	return &Server{
-		localQueue: make([]*Message, 0),
+		LocalQueue: make([]*Message, 0),
 		MyClock:    make([]int, len(addresses.Addresses)), //My vectorial Clock
-		dataStore:  make(map[string]string),
+		DataStore:  make(map[string]string),
 		modality:   1, //Causal Consistency
 	}
 

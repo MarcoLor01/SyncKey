@@ -8,7 +8,6 @@ import (
 )
 
 func (s *Server) CausalSendElement(message Message, reply *Response) error { //Function that sends the element to the other servers
-
 	s.myMutex.Lock()         //Lock the mutex
 	defer s.myMutex.Unlock() //Unlock the mutex when the function ends
 
@@ -17,13 +16,13 @@ func (s *Server) CausalSendElement(message Message, reply *Response) error { //F
 
 	response := s.createResponse()                //Create the response
 	s.sendToOtherServersCausal(message, response) //Send the message to the other servers
-
-	reply.Done = response.Done //Set the answer for the Client with the response.Done
+	reply.Done = response.Done                    //Set the answer for the Client with the response.Done
 	return nil
 }
 
 func (s *Server) incrementMyTimestamp() { //Function that increments the timestamp of the server
 	s.MyClock[MyId-1] += 1
+	fmt.Println("Incrementing my timestamp", s.MyClock)
 }
 
 func (message *Message) prepareMessage(clock []int, id int) { //Function that prepares the message to be sent
@@ -66,8 +65,8 @@ func (s *Server) sendToSingleServer(address ServerAddress, message Message, ch c
 		return
 	}
 	defer func(client *rpc.Client) {
-		err := client.Close()
-		if err != nil {
+		err1 := client.Close()
+		if err1 != nil {
 			log.Fatal("Error in closing connection")
 		}
 
@@ -85,15 +84,6 @@ func (s *Server) sendToSingleServer(address ServerAddress, message Message, ch c
 	default:
 		fmt.Println("Channel was closed before it could be sent")
 	}
-}
-
-func (s *Server) checkResponses(ch chan bool) bool { //Function that checks the responses
-	for response := range ch {                       //For each response in the channel
-		if response {
-			return true
-		}
-	}
-	return false
 }
 
 func (s *Server) SaveElementCausal(message Message, reply *Response) error {
@@ -117,8 +107,8 @@ func (s *Server) processMessages(message Message, reply *Response) {
 	var wg sync.WaitGroup
 	s.addToQueue(message) //Add the message to the queue
 
-	for i := len(s.localQueue) - 1; i >= 0; i-- {
-		message2 := s.localQueue[i]
+	for i := len(s.LocalQueue) - 1; i >= 0; i-- {
+		message2 := s.LocalQueue[i]
 		fmt.Println("Message in the queue:", message2.VectorTimestamp)
 		wg.Add(1)                                          //Add a new goroutine
 		go s.checkAndProcessMessage(*message2, reply, &wg) //Check and process the message
@@ -166,8 +156,8 @@ func (s *Server) processDeliverableMessage(message Message, reply *Response) {
 	reply.Done = true          //Set the response to true
 	fmt.Println("The message is deliverable")
 
-	s.removeFromQueue(message)    //Remove the message from the queue
-	s.printDataStore(s.dataStore) //Print the data store
+	s.removeFromQueue(message) //Remove the message from the queue
+	s.printDataStore()         //Print the data store
 
 	fmt.Println("My actual timestamp:", s.MyClock)
 }

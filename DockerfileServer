@@ -1,15 +1,17 @@
 FROM golang:latest
 
-WORKDIR /app
+WORKDIR /SyncKey
 
 COPY go.mod .
 COPY serverOperation .
-COPY serversAddr.json .
-
-RUN go mod download
-
+COPY serversAddrDocker.json .
+RUN go get -u github.com/joho/godotenv
+ARG SERVER_FILE
+ENV SERVER_FILE=${SERVER_FILE}
+ENV ENV_PATH=./.env
+ENV SERVER_ADDR=${SERVER_ADDR}
 COPY . .
 
-EXPOSE 8081
-
-ENTRYPOINT ["go", "run", "servers/server1.go"]
+EXPOSE ${SERVER_ADDR}
+CMD ["sh", "-cx", "go run ${SERVER_FILE}"]
+#CMD go run ${SERVER_FILE}

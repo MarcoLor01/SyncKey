@@ -23,19 +23,20 @@ type Config struct {
 
 func main() {
 
+	time.Sleep(10 * time.Second)
+
 	err := godotenv.Load("../.env")
 	if err != nil {
-		log.Fatalf("Error loading .env file: %v", err)
+		log.Fatal("Error loading .env file", err)
 	}
 
 	configuration := os.Getenv("CONFIG")
-
 	var filePath string
 
 	if configuration == "1" {
-		filePath = "../serversAddr.json"
+		filePath = "../serversAddrLocal.json"
 	} else if configuration == "2" {
-		filePath = "../serversAddr.json"
+		filePath = "../serversAddrDocker.json"
 	} else {
 		log.Fatalf("Error loading the configuration file: CONFIG is set to '%s'", configuration)
 	}
@@ -55,7 +56,7 @@ func main() {
 
 	serverNumber := rand.Intn(len(config.Address) - 1) //The server that I have to contact
 
-	client, err := rpc.Dial("tcp", config.Address[1].Addr)
+	client, err := rpc.Dial("tcp", config.Address[serverNumber].Addr)
 
 	defer func(client *rpc.Client) {
 		err1 := client.Close()
@@ -120,7 +121,8 @@ func main() {
 			log.Printf("Synchronous call to RPC server")
 
 			result := &serverOperation.Response{
-				Done: false,
+				Done:        false,
+				Deliverable: false,
 			}
 
 			log.Printf("Wait...")
@@ -129,8 +131,6 @@ func main() {
 				log.Fatal("Error adding the element to db, error: ", err)
 			}
 			var val string
-
-			time.Sleep(1 * time.Second)
 
 			if result.Done == true {
 				val = "Successful"
