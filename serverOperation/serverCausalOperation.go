@@ -7,59 +7,54 @@ import (
 	"sync"
 )
 
-func (s *Server) CausalSendElement(message Message, reply *Response) error { //Function that sends the element to the other servers
-	s.myMutex.Lock()         //Lock the mutex
-	defer s.myMutex.Unlock() //Unlock the mutex when the function ends
+func (s *Server) CausalSendElement(message Message, reply *Response) error {
+	s.myMutex.Lock()
+	defer s.myMutex.Unlock()
 
-	s.incrementMyTimestamp()                //Increment the timestamp
-	message.prepareMessage(s.MyClock, MyId) //Prepare the message
+	s.incrementMyTimestamp()
+	message.prepareMessage(s.MyClock, MyId) //Setto il timestamp e il mio id come sender
 
-	response := s.createResponse()                //Create the response
-	s.sendToOtherServersCausal(message, response) //Send the message to the other servers
-	reply.Done = response.Done                    //Set the answer for the Client with the response.Done
+	response := s.createResponse()
+	s.sendToOtherServersCausal(message, response)
+	reply.Done = response.Done
 	return nil
 }
 
-func (s *Server) incrementMyTimestamp() { //Function that increments the timestamp of the server
+func (s *Server) incrementMyTimestamp() {
 	s.MyClock[MyId-1] += 1
-	fmt.Println("Incrementing my timestamp", s.MyClock)
+	fmt.Println("Incrementing my timestamp...")
+	fmt.Println("My actual timestamp: ", s.MyClock)
 }
 
-func (message *Message) prepareMessage(clock []int, id int) { //Function that prepares the message to be sent
+func (message *Message) prepareMessage(clock []int, id int) {
 	message.VectorTimestamp = clock
 	message.ServerId = id
 }
 
-func (s *Server) createResponse() *Response { //Function that creates the response
+func (s *Server) createResponse() *Response {
 	return &Response{Done: false}
 }
 
 func (s *Server) sendToOtherServersCausal(message Message, response *Response) {
-	ch := make(chan bool, len(addresses.Addresses)) //Create a channel with the length of the addresses
-	var wg sync.WaitGroup                           //Create a WaitGroup
+
+	ch := make(chan bool, len(addresses.Addresses))
+	var wg sync.WaitGroup
 
 	for _, address := range addresses.Addresses {
-		wg.Add(1)                                          //Add a new goroutine
-		go s.sendToSingleServer(address, message, ch, &wg) //Send the message to the server
+		wg.Add(1)
+		go s.sendToSingleServer(address, message, ch, &wg)
 	}
 
-	wg.Wait() //Wait for all the goroutines to finish
-	close(ch) //Close the channel
+	wg.Wait()
+	close(ch)
 
 	response.Done = s.checkResponses(ch) //Check the responses
 }
 
 func (s *Server) sendToSingleServer(address ServerAddress, message Message, ch chan bool, wg *sync.WaitGroup) { //Function that sends the message to a single server
-	defer wg.Done() //Decrease the WaitGroup counter when the function ends
+	defer wg.Done()
 
-	//-----TESTING-------//
-	//if MyId == 1 && address.Id == 3 {
-	//	fmt.Println("I'm not sending to the server 3, sleeping...")
-	//	time.Sleep(40 * time.Second)
-	//}
-	//-----TESTING-------//
-
-	client, err := rpc.Dial("tcp", address.Addr) //Dial the server
+	client, err := rpc.Dial("tcp", address.Addr)
 	if err != nil {
 		log.Fatal("Connection RPC error:", err)
 		return
@@ -70,34 +65,34 @@ func (s *Server) sendToSingleServer(address ServerAddress, message Message, ch c
 			log.Fatal("Error in closing connection")
 		}
 
-	}(client) //Close the connection when the function ends
+	}(client) //Chiudo la connessione RPC alla fine della funzione
 
-	reply := &Response{Done: false} //Create a new response
+	reply := &Response{Done: false}
 
-	if err1 := client.Call("Server.SaveElementCausal", message, reply); err1 != nil { //Call the SaveElementCausal function
+	if err1 := client.Call("Server.SaveElementCausal", message, reply); err1 != nil {
 		log.Fatal("RPC call error:", err)
 		return
 	}
 
 	select {
-	case ch <- reply.Done: //Send the response to the channel
+	case ch <- reply.Done:
 	default:
 		fmt.Println("Channel was closed before it could be sent")
 	}
 }
 
 func (s *Server) SaveElementCausal(message Message, reply *Response) error {
-	s.lockIfNeeded(message.ServerId) //Lock the mutex if the serverId is different from MyId
+	s.lockIfNeeded(message.ServerId) //Lock del mutex se il serverId è diverso da MyId
 
-	fmt.Println(message.VectorTimestamp) //Print the vector timestamp
+	fmt.Println("The timestamp of the message is: ", message.VectorTimestamp)
 
-	s.processMessages(message, reply) //Process the messages
+	s.processMessages(message, reply)
 
 	return nil
 }
 
 func (s *Server) lockIfNeeded(serverId int) {
-	if serverId != MyId { //If the serverId is different from MyId
+	if serverId != MyId {
 		s.myMutex.Lock()
 		defer s.myMutex.Unlock()
 	}
@@ -105,13 +100,18 @@ func (s *Server) lockIfNeeded(serverId int) {
 
 func (s *Server) processMessages(message Message, reply *Response) {
 	var wg sync.WaitGroup
-	s.addToQueue(message) //Add the message to the queue
+	s.addToQueue(message)
 
 	for i := len(s.LocalQueue) - 1; i >= 0; i-- {
 		message2 := s.LocalQueue[i]
-		fmt.Println("Message in the queue:", message2.VectorTimestamp)
-		wg.Add(1)                                          //Add a new goroutine
-		go s.checkAndProcessMessage(*message2, reply, &wg) //Check and process the message
+		fmt.Println("Message in the queue:")
+		fmt.Println("-----------------------------------")
+		fmt.Println("Key: ", message2.Key)
+		fmt.Println("Value: ", message2.Value)
+		fmt.Println("Timestamp: ", message2.VectorTimestamp)
+		fmt.Println("-----------------------------------")
+		wg.Add(1)
+		go s.checkAndProcessMessage(*message2, reply, &wg)
 	}
 	wg.Wait()
 }
@@ -119,27 +119,31 @@ func (s *Server) processMessages(message Message, reply *Response) {
 func (s *Server) checkAndProcessMessage(message Message, reply *Response, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	if s.isMessageDeliverable(message) { //If the message is deliverable
-
-		s.processDeliverableMessage(message, reply) //Process the message
+	if s.isMessageDeliverable(message) {
+		s.processDeliverableMessage(message, reply)
 	} else {
 		fmt.Printf("The message is not deliverable: %d\n , My clock: %d\n", message.VectorTimestamp, s.MyClock)
 	}
 }
 
 func (s *Server) isMessageDeliverable(message Message) bool {
-	var mod bool //Variable that checks if the message is deliverable
+	var mod bool
 
-	if MyId == message.ServerId { //If the serverId is equal to MyId
+	//Se il server che ha inviato il messaggio è uguale al server che lo riceve
+	//Controllo se il timestamp del messaggio è uguale al timestamp del server
+	//In caso contrario controllo se il timestamp del messaggio è uguale al timestamp del server + 1
+	//Perchè se il messaggio è stato inviato dal server stesso, il timestamp sarà uguale al timestamp del server
+
+	if MyId == message.ServerId {
 		fmt.Println(message.VectorTimestamp, s.MyClock)
 		mod = message.VectorTimestamp[message.ServerId-1] == s.MyClock[message.ServerId-1] //I increased my counter before
 	} else {
 		mod = message.VectorTimestamp[message.ServerId-1] == s.MyClock[message.ServerId-1]+1
 	}
 
-	if mod { //If the message is deliverable
+	if mod {
 		for index, ts := range message.VectorTimestamp {
-			if index == message.ServerId-1 { //If the index is equal to the serverId
+			if index == message.ServerId-1 {
 				continue
 			}
 			if ts > s.MyClock[index] { //If the timestamp is greater than the server's timestamp
@@ -168,4 +172,15 @@ func (s *Server) updateTimestamp(message Message) { //Function that updates the 
 			s.MyClock[ind] = ts
 		}
 	}
+}
+
+func (s *Server) GetElementCausal(key string, reply *string) error {
+	s.myMutex.Lock()
+	defer s.myMutex.Unlock()
+	if value, ok := s.DataStore[key]; ok {
+		*reply = value
+		fmt.Println("Element found")
+		return nil
+	}
+	return nil
 }

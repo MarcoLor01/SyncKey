@@ -6,7 +6,7 @@ REM Imposta la variabile di ambiente CONFIG
 REM Percorsi dei file Go
 set "server_files=servers"
 set "client_files=clients"
-set "operation_type=seq"
+set "operation_type=caus"
 
 REM Set CONFIG from command line argument
 set CONFIG=%1

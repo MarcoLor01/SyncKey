@@ -67,24 +67,64 @@ func CreateNewCausalDataStore() *Server {
 
 } //Creation of a new DataStore that supports causal consistency
 
-func (s *Server) ChoiceConsistency(message Message, reply *Response) error { //Function that chooses the consistency of the server
+func (s *Server) ChoiceConsistencyPut(message Message, reply *Response) error { //Function that chooses the consistency of the server
 
 	response := &Response{
 		Done: false,
 	}
 
-	if s.modality == 0 { //Sequential Consistency
+	if s.modality == 0 {
 		err := s.AddElement(message, response)
 		if err != nil {
 			log.Fatal("Error in adding the element to the db: ", err)
 		}
 	} else {
-		err := s.CausalSendElement(message, response) //Causal Consistency
+		err := s.CausalSendElement(message, response)
 		if err != nil {
 			log.Fatal("Error in adding the element to the db: ", err)
 		}
 	}
 
-	reply.Done = response.Done //Set the answer for the Client with the response.Done
+	reply.Done = response.Done
+	return nil
+}
+
+func (s *Server) ChoiceConsistencyDelete(message Message, reply *Response) error { //Function that chooses the consistency of the server
+
+	response := &Response{
+		Done: false,
+	}
+
+	if s.modality == 0 {
+		err := s.AddElement(message, response)
+		if err != nil {
+			log.Fatal("Error in deleting the element to the db: ", err)
+		}
+	} else {
+		err := s.CausalSendElement(message, response)
+		if err != nil {
+			log.Fatal("Error in deleting the element to the db: ", err)
+		}
+	}
+
+	reply.Done = response.Done
+	return nil
+}
+
+func (s *Server) ChoiceConsistencyGet(message Message, reply *string) error {
+
+	var response *string
+	if s.modality == 0 { //Sequential Consistency
+		err := s.GetElement(message.Key, response)
+		if err != nil {
+			log.Fatal("Error in deleting the element to the db: ", err)
+		}
+	} else {
+		err := s.GetElementCausal(message.Key, response) //Causal Consistency
+		if err != nil {
+			log.Fatal("Error in deleting the element to the db: ", err)
+		}
+	}
+	reply = response //Set the answer for the Client with the response.Done
 	return nil
 }

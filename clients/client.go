@@ -13,13 +13,11 @@ import (
 	"time"
 )
 
-type Addrs struct {
-	ID   int    `json:"id"`
-	Addr string `json:"addr"`
-}
-
 type Config struct {
-	Address []Addrs `json:"address"`
+	Address []struct {
+		ID   int    `json:"id"`
+		Addr string `json:"addr"`
+	} `json:"address"`
 }
 
 func main() {
@@ -33,26 +31,19 @@ func main() {
 
 	configuration := os.Getenv("CONFIG") //Carico il valore della variabile d'ambiente CONFIG,
 	//che mi dice se sto usando la configurazione locale (CONFIG = 1) o quella docker (CONFIG = 2)
-	var filePath string
-
-	if configuration == "1" {
-		filePath = "../serversAddrLocal.json"
-	} else if configuration == "2" {
-		filePath = "../serversAddrDocker.json"
-	} else {
+	filePath := map[string]string{"1": "../serversAddrLocal.json", "2": "../serversAddrDocker.json"}[configuration]
+	if filePath == "" {
 		log.Fatalf("Error loading the configuration file: CONFIG is set to '%s'", configuration)
 	}
 
 	fileContent, err := os.ReadFile(filePath)
 	if err != nil {
 		log.Fatal("Error reading file:", err)
-		return
 	}
 
 	var config Config
 	if err1 := json.Unmarshal(fileContent, &config); err1 != nil {
 		log.Fatal("Error in JSON decode:", err1)
-		return
 	}
 	//Prendo un valore random compreso tra 0 e il numero di server - 1,
 	//così da poter contattare un server randomicamente
@@ -64,7 +55,7 @@ func main() {
 	defer func(client *rpc.Client) {
 		err1 := client.Close()
 		if err1 != nil {
-			log.Fatal("Error in closing connection")
+			log.Fatal("Error in closing connection", err1)
 		}
 	}(client)
 
@@ -77,12 +68,12 @@ func main() {
 		if configuration == "1" {
 
 			fmt.Print("Enter action (put/get/delete): ")
-			_, err = fmt.Scan(&actionToDo)
+			_, err := fmt.Scan(&actionToDo)
 			if err != nil {
-				log.Fatal(err)
+				log.Fatal("Error in reading the action: ", err)
 			}
 
-			if actionToDo == "put" || actionToDo == "delete" { //Se devo inserire o eliminare un elemento dal datastore,
+			if actionToDo == "put" || actionToDo == "delete" || actionToDo == "get" { //Se devo inserire o eliminare un elemento dal datastore,
 				//devo ricevere la Key dall'utente, che non può essere vuota
 				for {
 					fmt.Print("Enter key: ")
@@ -148,7 +139,7 @@ func main() {
 			}
 
 			log.Printf("Wait...")
-			err = client.Call("Server.ChoiceConsistency", args, &result) //Calling the AddElement routine
+			err = client.Call("Server.ChoiceConsistencyPut", args, &result) //Calling the AddElement routine
 			if err != nil {
 				log.Fatal("Error adding the element to db, error: ", err)
 			}
@@ -177,7 +168,7 @@ func main() {
 			}
 
 			log.Printf("Wait...")
-			err = client.Call("Server.AddElement", args, &result)
+			err = client.Call("Server.ChoiceConsistencyDelete", args, &result)
 			if err != nil {
 				log.Fatal("Error adding the element to db, error: ", err)
 			}
@@ -196,14 +187,17 @@ func main() {
 
 			log.Printf("Synchronous call to RPC server")
 			log.Printf("Wait...")
-			err = client.Call("Server.GetElement", key, value)
+			var returnValue string
+			err = client.Call("Server.GetElement", key, &returnValue)
+			fmt.Println("Get element with Key: ", key)
+			fmt.Println("Value: ", returnValue)
 			if err != nil {
 				log.Fatal("Error adding the element to db, error: ", err)
 			}
 			time.Sleep(1 * time.Second)
 
-			if value != "" {
-				log.Printf("Element with Key %s, have value: %s", key, value)
+			if returnValue != "" {
+				log.Printf("Element with Key %s, have value: %s", key, returnValue)
 			} else {
 				log.Printf("No element with Key: %s\n", key)
 			}
