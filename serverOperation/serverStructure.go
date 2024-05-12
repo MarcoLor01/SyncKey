@@ -37,6 +37,9 @@ type ServerInformation struct {
 	Addresses []ServerAddress `json:"address"`
 }
 
+const datastoreErrorDeleting string = "Error deleting the element to the datastore: "
+const datastoreError string = "Error adding the element to the datastore: "
+
 type Server struct {
 	DataStore     map[string]string //The Key-Value Database
 	LocalQueue    []*Message
@@ -76,12 +79,12 @@ func (s *Server) ChoiceConsistencyPut(message Message, reply *Response) error { 
 	if s.modality == 0 {
 		err := s.AddElement(message, response)
 		if err != nil {
-			log.Fatal("Error in adding the element to the db: ", err)
+			log.Fatal(datastoreError, err)
 		}
 	} else {
 		err := s.CausalSendElement(message, response)
 		if err != nil {
-			log.Fatal("Error in adding the element to the db: ", err)
+			log.Fatal(datastoreError, err)
 		}
 	}
 
@@ -98,12 +101,12 @@ func (s *Server) ChoiceConsistencyDelete(message Message, reply *Response) error
 	if s.modality == 0 {
 		err := s.AddElement(message, response)
 		if err != nil {
-			log.Fatal("Error in deleting the element to the db: ", err)
+			log.Fatal(datastoreErrorDeleting, err)
 		}
 	} else {
 		err := s.CausalSendElement(message, response)
 		if err != nil {
-			log.Fatal("Error in deleting the element to the db: ", err)
+			log.Fatal(datastoreErrorDeleting, err)
 		}
 	}
 
@@ -117,12 +120,12 @@ func (s *Server) ChoiceConsistencyGet(message Message, reply *string) error {
 	if s.modality == 0 { //Sequential Consistency
 		err := s.GetElement(message.Key, response)
 		if err != nil {
-			log.Fatal("Error in deleting the element to the db: ", err)
+			log.Fatal(datastoreErrorDeleting, err)
 		}
 	} else {
 		err := s.GetElementCausal(message.Key, response) //Causal Consistency
 		if err != nil {
-			log.Fatal("Error in deleting the element to the db: ", err)
+			log.Fatal(datastoreErrorDeleting, err)
 		}
 	}
 	reply = response //Set the answer for the Client with the response.Done

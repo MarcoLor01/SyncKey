@@ -104,13 +104,6 @@ func (s *Server) processMessages(message Message, reply *Response) {
 
 	for i := len(s.LocalQueue) - 1; i >= 0; i-- {
 		message2 := s.LocalQueue[i]
-		fmt.Println("Message in the queue:")
-		fmt.Println("-----------------------------------")
-		fmt.Println("Key: ", message2.Key)
-		fmt.Println("Value: ", message2.Value)
-		fmt.Println("Timestamp: ", message2.VectorTimestamp)
-		fmt.Println("-----------------------------------")
-		wg.Add(1)
 		go s.checkAndProcessMessage(*message2, reply, &wg)
 	}
 	wg.Wait()
@@ -159,10 +152,14 @@ func (s *Server) processDeliverableMessage(message Message, reply *Response) {
 	s.updateTimestamp(message) //Update the timestamp
 	reply.Done = true          //Set the response to true
 	fmt.Println("The message is deliverable")
-
-	s.removeFromQueue(message) //Remove the message from the queue
-	s.printDataStore()         //Print the data store
-
+	if message.OperationType == 1 {
+		s.removeFromQueue(message) //Remove the message from the queue
+		s.printDataStore()         //Print the data store
+	}
+	if message.OperationType == 2 {
+		s.removeFromQueueDeletingCausal(message) //Remove the message from the queue
+		s.printDataStore()                       //Print the data store
+	}
 	fmt.Println("My actual timestamp:", s.MyClock)
 }
 

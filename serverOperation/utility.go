@@ -3,6 +3,7 @@ package serverOperation
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"time"
 
 	"log"
@@ -70,6 +71,16 @@ func (s *Server) removeFromQueue(message Message) {
 func (s *Server) removeFromQueueDeleting(message Message) {
 	for i, msg := range s.LocalQueue { //I'm going to remove this message from my queue
 		if message.Key == msg.Key && message.Value == msg.Value && message.ScalarTimestamp == msg.ScalarTimestamp {
+			delete(s.DataStore, msg.Key)                                   //Delete the message from my DS
+			s.LocalQueue = append(s.LocalQueue[:i], s.LocalQueue[i+1:]...) //Remove
+			break
+		}
+	}
+}
+
+func (s *Server) removeFromQueueDeletingCausal(message Message) {
+	for i, msg := range s.LocalQueue {
+		if message.Key == msg.Key && message.Value == msg.Value && reflect.DeepEqual(message.VectorTimestamp, msg.VectorTimestamp) == true {
 			delete(s.DataStore, msg.Key)                                   //Delete the message from my DS
 			s.LocalQueue = append(s.LocalQueue[:i], s.LocalQueue[i+1:]...) //Remove
 			break

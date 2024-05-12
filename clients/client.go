@@ -20,6 +20,10 @@ type Config struct {
 	} `json:"address"`
 }
 
+const wait string = "Wait..."
+const call string = "Synchronous call to RPC server"
+const datastoreError string = "Error adding the element to datastore, error: "
+
 func main() {
 
 	time.Sleep(10 * time.Second) //Attendo che i server siano pronti
@@ -48,7 +52,8 @@ func main() {
 	//Prendo un valore random compreso tra 0 e il numero di server - 1,
 	//così da poter contattare un server randomicamente
 
-	serverNumber := rand.Intn(len(config.Address) - 1) //The server that I have to contact
+	serverNumber := rand.Intn(len(config.Address) - 1) //Sarà il server che contatterò per tutte le mie
+	//prossime richieste RPC
 
 	client, err := rpc.Dial("tcp", config.Address[serverNumber].Addr)
 
@@ -131,17 +136,17 @@ func main() {
 			log.Printf("Adding element with Key: %s, and Value: %s\n contacting %s", n1, n2, config.Address[serverNumber].Addr) // make([]int, len(config.Address)),
 
 			args := serverOperation.Message{Key: n1, Value: n2, VectorTimestamp: make([]int, len(config.Address)), OperationType: 1}
-			log.Printf("Synchronous call to RPC server")
+			log.Printf(call)
 
 			result := &serverOperation.Response{
 				Done:        false,
 				Deliverable: false,
 			}
 
-			log.Printf("Wait...")
+			log.Printf(wait)
 			err = client.Call("Server.ChoiceConsistencyPut", args, &result) //Calling the AddElement routine
 			if err != nil {
-				log.Fatal("Error adding the element to db, error: ", err)
+				log.Fatal(datastoreError, err)
 			}
 			var val string
 
@@ -161,16 +166,16 @@ func main() {
 
 			log.Printf("Get element with Key: %s\n", n1)
 			args := serverOperation.Message{Key: n1, VectorTimestamp: make([]int, len(config.Address)), OperationType: 2}
-			log.Printf("Synchronous call to RPC server")
+			log.Printf(call)
 
 			result := &serverOperation.Response{
 				Done: false,
 			}
 
-			log.Printf("Wait...")
+			log.Printf(wait)
 			err = client.Call("Server.ChoiceConsistencyDelete", args, &result)
 			if err != nil {
-				log.Fatal("Error adding the element to db, error: ", err)
+				log.Fatal(datastoreError, err)
 			}
 			var val1 string
 
@@ -185,14 +190,14 @@ func main() {
 			//--------------------------------------GET CASE--------------------------------------//
 		} else if actionToDo == "get" {
 
-			log.Printf("Synchronous call to RPC server")
-			log.Printf("Wait...")
+			log.Printf(call)
+			log.Printf(wait)
 			var returnValue string
 			err = client.Call("Server.GetElement", key, &returnValue)
 			fmt.Println("Get element with Key: ", key)
 			fmt.Println("Value: ", returnValue)
 			if err != nil {
-				log.Fatal("Error adding the element to db, error: ", err)
+				log.Fatal(datastoreError, err)
 			}
 			time.Sleep(1 * time.Second)
 
@@ -214,7 +219,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		continueRunning = strings.ToLower(continueRunning) // Convert to lowercase
+		continueRunning = strings.ToLower(continueRunning)
 		if continueRunning != "yes" {
 			break
 		}
