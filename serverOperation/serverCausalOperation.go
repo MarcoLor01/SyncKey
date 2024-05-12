@@ -101,6 +101,7 @@ func (s *Server) lockIfNeeded(serverId int) {
 func (s *Server) processMessages(message Message, reply *Response) {
 	var wg sync.WaitGroup
 	s.addToQueue(message)
+	wg.Add(len(s.LocalQueue))
 
 	for i := len(s.LocalQueue) - 1; i >= 0; i-- {
 		message2 := s.LocalQueue[i]
@@ -110,6 +111,7 @@ func (s *Server) processMessages(message Message, reply *Response) {
 }
 
 func (s *Server) checkAndProcessMessage(message Message, reply *Response, wg *sync.WaitGroup) {
+	defer fmt.Print("Ho finito e rilascio lock\n")
 	defer wg.Done()
 
 	if s.isMessageDeliverable(message) {

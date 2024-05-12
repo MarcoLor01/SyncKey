@@ -53,14 +53,152 @@ func createClient(config Config) (int, *rpc.Client) {
 	if err != nil {
 		log.Fatal("Error in dialing: ", err)
 	}
-	defer func(client *rpc.Client) {
-		err = client.Close()
-		if err != nil {
-			log.Fatal("Error in closing connection", err)
-		}
-	}(client)
-
 	return serverNumber, client
+}
+
+func addElementToDS(configuration string, key string, value string, config Config, serverNumber int, client *rpc.Client) {
+
+	var n1, n2 string
+	if configuration == "1" {
+		n1 = key
+		n2 = value
+	}
+	if configuration == "2" {
+		n1 = os.Getenv("KEY")
+		n2 = os.Getenv("VALUE")
+	}
+
+	log.Printf("Adding element with Key: %s, and Value: %s contacting %s", n1, n2, config.Address[serverNumber].Addr) // make([]int, len(config.Address)),
+
+	args := serverOperation.Message{Key: n1, Value: n2, VectorTimestamp: make([]int, len(config.Address)), OperationType: 1}
+	log.Printf(call)
+
+	result := &serverOperation.Response{
+		Done:        false,
+		Deliverable: false,
+	}
+
+	log.Printf(wait)
+
+	err := client.Call("Server.ChoiceConsistencyPut", args, &result) //Calling the AddElement routine
+	if err != nil {
+		log.Fatal(datastoreError, err)
+	}
+
+	var val string
+
+	time.Sleep(1 * time.Second)
+
+	if result.Done == true {
+		val = "Successful"
+	} else {
+		val = "Failed"
+	}
+	log.Println(val)
+}
+
+func deleteElementFromDS(key string, config Config, client *rpc.Client) {
+	n1 := key
+
+	log.Printf("Get element with Key: %s\n", n1)
+	args := serverOperation.Message{Key: n1, VectorTimestamp: make([]int, len(config.Address)), OperationType: 2}
+	log.Printf(call)
+
+	result := &serverOperation.Response{
+		Done: false,
+	}
+
+	log.Printf(wait)
+	err := client.Call("Server.ChoiceConsistencyDelete", args, &result)
+	if err != nil {
+		log.Fatal(datastoreError, err)
+	}
+	var val1 string
+
+	time.Sleep(1 * time.Second)
+
+	if result.Done == true {
+		val1 = "Successful"
+	} else {
+		val1 = "Failed"
+	}
+	log.Println(val1)
+}
+
+func getElementFromDS(key string, client *rpc.Client) {
+
+	log.Printf(call)
+	log.Printf(wait)
+	var returnValue string
+	err := client.Call("Server.GetElement", key, &returnValue)
+	fmt.Println("Get element with Key: ", key)
+	fmt.Println("Value: ", returnValue)
+
+	if err != nil {
+		log.Fatal(datastoreError, err)
+	}
+	time.Sleep(1 * time.Second)
+
+	if returnValue != "" {
+		log.Printf("Element with Key %s, have value: %s", key, returnValue)
+	} else {
+		log.Printf("No element with Key: %s\n", key)
+	}
+}
+
+// Funzione per stabilire l'azione che devo svolgere
+func establishActionToDo() string {
+	var actionToDo string
+	for {
+		fmt.Print("Enter action (put/get/delete): ")
+		_, err := fmt.Scan(&actionToDo)
+		if err != nil {
+			log.Fatal("Error in reading the action: ", err)
+		}
+
+		switch actionToDo {
+		case "put", "delete", "get":
+			// Se l'azione è valida, esce dal ciclo interno
+			break
+		default:
+			log.Printf("Uncorrect flag. Please enter a valid action (put/get/delete).")
+			continue
+		}
+		break
+	}
+	return actionToDo
+}
+
+func insertKey() string {
+	var key string
+	for {
+		fmt.Print("Enter key: ")
+		_, err := fmt.Scan(&key)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if key != "" {
+			break
+		}
+		fmt.Println("Key cannot be an empty string. Please enter a valid key.")
+	}
+	return key
+}
+
+func insertValue() string {
+	var value string
+	for {
+		fmt.Print("Enter value: ")
+		_, err := fmt.Scan(&value)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if value != "" {
+			break
+		}
+		fmt.Println("Value cannot be an empty string. Please enter a valid value.")
+	}
+	return value
 }
 
 func main() {
@@ -82,43 +220,13 @@ func main() {
 	for {
 		var actionToDo, key, value string
 		if configuration == "1" {
-
-			fmt.Print("Enter action (put/get/delete): ")
-			_, err = fmt.Scan(&actionToDo)
-			if err != nil {
-				log.Fatal("Error in reading the action: ", err)
-			}
-
-			if actionToDo == "put" || actionToDo == "delete" || actionToDo == "get" { //Se devo inserire o eliminare un elemento dal datastore,
-				//devo ricevere la Key dall'utente, che non può essere vuota
-				for {
-					fmt.Print("Enter key: ")
-					_, err = fmt.Scan(&key)
-					if err != nil {
-						log.Fatal(err)
-					}
-					if key != "" {
-						break
-					}
-					fmt.Println("Key cannot be an empty string. Please enter a valid key.")
-				}
-			}
-
+			actionToDo = establishActionToDo()
+			//Devo prima di tutto andare a prendere la key per la ricerca nel datastore per qualsiasi configurazione
+			key = insertKey()
 			if actionToDo == "put" { //Se l'utente ha scelto di inserire un elemento nel datastore, deve inoltre fornirmi
 				//il valore da associare alla Key, che non può essere vuoto
-				for {
-					fmt.Print("Enter value: ")
-					_, err = fmt.Scan(&value)
-					if err != nil {
-						log.Fatal(err)
-					}
-					if value != "" {
-						break
-					}
-					fmt.Println("Value cannot be an empty string. Please enter a valid value.")
-				}
+				value = insertValue()
 			}
-
 		} else if configuration == "2" {
 			actionToDo = os.Getenv("OPERATION")
 			fmt.Print("Enter value: ")
@@ -128,100 +236,19 @@ func main() {
 			}
 		}
 
-		if actionToDo == "not specified" {
+		switch actionToDo {
+		case "not specified":
 			log.Printf("When you call the datastore you have to specify the action with -a (action): \n-a put with key and value for a put operation, \n-a get with the key for a get operation, \n-a delete with the key for a delete operation\n")
 			os.Exit(-1)
-			//--------------------------------------PUT CASE--------------------------------------//
-		} else if actionToDo == "put" {
-
-			var n1, n2 string
-			if configuration == "1" {
-				n1 = key
-				n2 = value
-			}
-			if configuration == "2" {
-				n1 = os.Getenv("KEY")
-				n2 = os.Getenv("VALUE")
-			}
-
-			log.Printf("Adding element with Key: %s, and Value: %s\n contacting %s", n1, n2, config.Address[serverNumber].Addr) // make([]int, len(config.Address)),
-
-			args := serverOperation.Message{Key: n1, Value: n2, VectorTimestamp: make([]int, len(config.Address)), OperationType: 1}
-			log.Printf(call)
-
-			result := &serverOperation.Response{
-				Done:        false,
-				Deliverable: false,
-			}
-
-			log.Printf(wait)
-			err = client.Call("Server.ChoiceConsistencyPut", args, &result) //Calling the AddElement routine
-			if err != nil {
-				log.Fatal(datastoreError, err)
-			}
-			var val string
-
-			time.Sleep(1 * time.Second)
-
-			if result.Done == true {
-				val = "Successful"
-			} else {
-				val = "Failed"
-			}
-			log.Println(val)
-			//--------------------------------------DELETE CASE--------------------------------------//
-
-		} else if actionToDo == "delete" {
-
-			n1 := key
-
-			log.Printf("Get element with Key: %s\n", n1)
-			args := serverOperation.Message{Key: n1, VectorTimestamp: make([]int, len(config.Address)), OperationType: 2}
-			log.Printf(call)
-
-			result := &serverOperation.Response{
-				Done: false,
-			}
-
-			log.Printf(wait)
-			err = client.Call("Server.ChoiceConsistencyDelete", args, &result)
-			if err != nil {
-				log.Fatal(datastoreError, err)
-			}
-			var val1 string
-
-			time.Sleep(1 * time.Second)
-
-			if result.Done == true {
-				val1 = "Successful"
-			} else {
-				val1 = "Failed"
-			}
-			log.Println(val1)
-			//--------------------------------------GET CASE--------------------------------------//
-		} else if actionToDo == "get" {
-
-			log.Printf(call)
-			log.Printf(wait)
-			var returnValue string
-			err = client.Call("Server.GetElement", key, &returnValue)
-			fmt.Println("Get element with Key: ", key)
-			fmt.Println("Value: ", returnValue)
-			if err != nil {
-				log.Fatal(datastoreError, err)
-			}
-			time.Sleep(1 * time.Second)
-
-			if returnValue != "" {
-				log.Printf("Element with Key %s, have value: %s", key, returnValue)
-			} else {
-				log.Printf("No element with Key: %s\n", key)
-			}
-		} else {
-
+		case "put":
+			addElementToDS(configuration, key, value, config, serverNumber, client)
+		case "delete":
+			deleteElementFromDS(key, config, client)
+		case "get":
+			getElementFromDS(key, client)
+		default:
 			log.Printf("Uncorrect flag")
 			return
-
 		}
 
 		var continueRunning string
@@ -232,6 +259,10 @@ func main() {
 		}
 		continueRunning = strings.ToLower(continueRunning)
 		if continueRunning != "yes" {
+			err = client.Close()
+			if err != nil {
+				return
+			}
 			break
 		}
 	}
