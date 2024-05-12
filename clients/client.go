@@ -24,6 +24,45 @@ const wait string = "Wait..."
 const call string = "Synchronous call to RPC server"
 const datastoreError string = "Error adding the element to datastore, error: "
 
+func loadConfig(configuration string) Config {
+
+	filePath := map[string]string{"1": "../serversAddrLocal.json", "2": "../serversAddrDocker.json"}[configuration]
+	if filePath == "" {
+		log.Fatalf("Error loading the configuration file: CONFIG is set to '%s'", configuration)
+	}
+	fileContent, err := os.ReadFile(filePath)
+	if err != nil {
+		log.Fatal("Error reading file:", err)
+	}
+	var config Config
+	if err = json.Unmarshal(fileContent, &config); err != nil {
+		log.Fatal("Error in JSON decode:", err)
+	}
+	return config
+}
+
+func createClient(config Config) (int, *rpc.Client) {
+
+	//Prendo un valore random compreso tra 0 e il numero di server - 1,
+	//così da poter contattare un server random tra quelli disponibili
+	//e successivamente lo vado a contattare
+
+	serverNumber := rand.Intn(len(config.Address) - 1)
+
+	client, err := rpc.Dial("tcp", config.Address[serverNumber].Addr)
+	if err != nil {
+		log.Fatal("Error in dialing: ", err)
+	}
+	defer func(client *rpc.Client) {
+		err = client.Close()
+		if err != nil {
+			log.Fatal("Error in closing connection", err)
+		}
+	}(client)
+
+	return serverNumber, client
+}
+
 func main() {
 
 	time.Sleep(10 * time.Second) //Attendo che i server siano pronti
@@ -35,45 +74,17 @@ func main() {
 
 	configuration := os.Getenv("CONFIG") //Carico il valore della variabile d'ambiente CONFIG,
 	//che mi dice se sto usando la configurazione locale (CONFIG = 1) o quella docker (CONFIG = 2)
-	filePath := map[string]string{"1": "../serversAddrLocal.json", "2": "../serversAddrDocker.json"}[configuration]
-	if filePath == "" {
-		log.Fatalf("Error loading the configuration file: CONFIG is set to '%s'", configuration)
-	}
 
-	fileContent, err := os.ReadFile(filePath)
-	if err != nil {
-		log.Fatal("Error reading file:", err)
-	}
+	config := loadConfig(configuration)
 
-	var config Config
-	if err1 := json.Unmarshal(fileContent, &config); err1 != nil {
-		log.Fatal("Error in JSON decode:", err1)
-	}
-	//Prendo un valore random compreso tra 0 e il numero di server - 1,
-	//così da poter contattare un server randomicamente
-
-	serverNumber := rand.Intn(len(config.Address) - 1) //Sarà il server che contatterò per tutte le mie
-	//prossime richieste RPC
-
-	client, err := rpc.Dial("tcp", config.Address[serverNumber].Addr)
-
-	defer func(client *rpc.Client) {
-		err1 := client.Close()
-		if err1 != nil {
-			log.Fatal("Error in closing connection", err1)
-		}
-	}(client)
-
-	if err != nil {
-		log.Fatal("Error in dialing: ", err)
-	}
+	serverNumber, client := createClient(config)
 
 	for {
 		var actionToDo, key, value string
 		if configuration == "1" {
 
 			fmt.Print("Enter action (put/get/delete): ")
-			_, err := fmt.Scan(&actionToDo)
+			_, err = fmt.Scan(&actionToDo)
 			if err != nil {
 				log.Fatal("Error in reading the action: ", err)
 			}
