@@ -201,49 +201,53 @@ func insertValue() string {
 	return value
 }
 
-func main() {
-
-	time.Sleep(10 * time.Second) //Attendo che i server siano pronti
-
+func loadEnvironment() string {
 	err := godotenv.Load("../.env")
 	if err != nil {
 		log.Fatal("Error loading .env file", err)
 	}
-
 	configuration := os.Getenv("CONFIG") //Carico il valore della variabile d'ambiente CONFIG,
 	//che mi dice se sto usando la configurazione locale (CONFIG = 1) o quella docker (CONFIG = 2)
+	return configuration
+}
+
+func getAction(configuration string) (string, string, string) {
+	var actionToDo, key, value string
+
+	if configuration == "1" {
+		actionToDo = establishActionToDo()
+		//Devo prima di tutto andare a prendere la key per la ricerca nel datastore per qualsiasi configurazione
+		key = insertKey()
+		if actionToDo == "put" {
+			//Se l'utente ha scelto di inserire un elemento nel datastore, deve inoltre fornirmi
+			//il valore da associare alla Key, che non può essere vuoto
+			value = insertValue()
+		}
+	} else if configuration == "2" {
+		actionToDo = os.Getenv("OPERATION")
+		fmt.Print("Enter value: ")
+		_, err := fmt.Scan(&value)
+		if err != nil {
+			log.Fatal(err)
+		}
+	} else {
+		log.Fatal("Error in configuration file, CONFIG is set to ", configuration)
+	}
+	return actionToDo, key, value
+}
+
+func main() {
+
+	time.Sleep(10 * time.Second) //Attendo che i server siano pronti
+
+	configuration := loadEnvironment()
 
 	config := loadConfig(configuration)
 	serverNumber, client := createClient(config)
 
 	for {
-		var actionToDo, key, value string
-		if configuration == "1" {
-			actionToDo = establishActionToDo()
-
-			//Devo prima di tutto andare a prendere la key per la ricerca nel datastore per qualsiasi configurazione
-
-			key = insertKey()
-
-			if actionToDo == "put" {
-				//Se l'utente ha scelto di inserire un elemento nel datastore, deve inoltre fornirmi
-				//il valore da associare alla Key, che non può essere vuoto
-				value = insertValue()
-			}
-
-		} else if configuration == "2" {
-			actionToDo = os.Getenv("OPERATION")
-			fmt.Print("Enter value: ")
-			_, err = fmt.Scan(&value)
-			if err != nil {
-				log.Fatal(err)
-			}
-		} else {
-			log.Fatal("Error in configuration file, CONFIG is set to ", configuration)
-		}
-
+		actionToDo, key, value := getAction(configuration)
 		//In base all'azione che l'utente ha scelto di svolgere, vado a chiamare la funzione corrispondente
-
 		switch actionToDo {
 		case "not specified":
 			log.Printf("When you call the datastore you have to specify the action with -a (action): \n-a put with key and value for a put operation, \n-a get with the key for a get operation, \n-a delete with the key for a delete operation\n")
@@ -263,7 +267,7 @@ func main() {
 
 		var continueRunning string
 		fmt.Print("Do you want to continue? (yes/no): ")
-		_, err = fmt.Scan(&continueRunning)
+		_, err := fmt.Scan(&continueRunning)
 		if err != nil {
 			log.Fatal(err)
 		}
