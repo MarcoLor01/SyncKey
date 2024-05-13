@@ -10,7 +10,6 @@ import (
 func (s *Server) CausalSendElement(message Message, reply *Response) error {
 	s.myMutex.Lock()
 	defer s.myMutex.Unlock()
-
 	s.incrementMyTimestamp()
 	message.prepareMessage(s.MyClock, MyId) //Setto il timestamp e il mio id come sender
 
@@ -65,7 +64,7 @@ func (s *Server) sendToSingleServer(address ServerAddress, message Message, ch c
 			log.Fatal("Error in closing connection")
 		}
 
-	}(client) //Chiudo la connessione RPC alla fine della funzione
+	}(client)
 
 	reply := &Response{Done: false}
 
@@ -77,7 +76,7 @@ func (s *Server) sendToSingleServer(address ServerAddress, message Message, ch c
 	select {
 	case ch <- reply.Done:
 	default:
-		fmt.Println("Channel was closed before it could be sent")
+		log.Fatal("Channel was closed before it could be sent")
 	}
 }
 
@@ -111,7 +110,6 @@ func (s *Server) processMessages(message Message, reply *Response) {
 }
 
 func (s *Server) checkAndProcessMessage(message Message, reply *Response, wg *sync.WaitGroup) {
-	defer fmt.Print("Ho finito e rilascio lock\n")
 	defer wg.Done()
 
 	if s.isMessageDeliverable(message) {
@@ -127,11 +125,10 @@ func (s *Server) isMessageDeliverable(message Message) bool {
 	//Se il server che ha inviato il messaggio è uguale al server che lo riceve
 	//Controllo se il timestamp del messaggio è uguale al timestamp del server
 	//In caso contrario controllo se il timestamp del messaggio è uguale al timestamp del server + 1
-	//Perchè se il messaggio è stato inviato dal server stesso, il timestamp sarà uguale al timestamp del server
+	//Perché se il messaggio è stato inviato dal server stesso, il timestamp sarà uguale al timestamp del server
 
 	if MyId == message.ServerId {
-		fmt.Println(message.VectorTimestamp, s.MyClock)
-		mod = message.VectorTimestamp[message.ServerId-1] == s.MyClock[message.ServerId-1] //I increased my counter before
+		mod = message.VectorTimestamp[message.ServerId-1] == s.MyClock[message.ServerId-1]
 	} else {
 		mod = message.VectorTimestamp[message.ServerId-1] == s.MyClock[message.ServerId-1]+1
 	}
@@ -151,23 +148,23 @@ func (s *Server) isMessageDeliverable(message Message) bool {
 }
 
 func (s *Server) processDeliverableMessage(message Message, reply *Response) {
-	s.updateTimestamp(message) //Update the timestamp
-	reply.Done = true          //Set the response to true
+	s.updateTimestamp(message)
+	reply.Done = true
 	fmt.Println("The message is deliverable")
 	if message.OperationType == 1 {
-		s.removeFromQueue(message) //Remove the message from the queue
-		s.printDataStore()         //Print the data store
+		s.removeFromQueue(message)
+		s.printDataStore()
 	}
 	if message.OperationType == 2 {
-		s.removeFromQueueDeletingCausal(message) //Remove the message from the queue
-		s.printDataStore()                       //Print the data store
+		s.removeFromQueueDeletingCausal(message)
+		s.printDataStore()
 	}
 	fmt.Println("My actual timestamp:", s.MyClock)
 }
 
-func (s *Server) updateTimestamp(message Message) { //Function that updates the timestamp
+func (s *Server) updateTimestamp(message Message) {
 	for ind, ts := range message.VectorTimestamp {
-		if ts > s.MyClock[ind] { //If the timestamp is greater than the server's timestamp
+		if ts > s.MyClock[ind] {
 			s.MyClock[ind] = ts
 		}
 	}

@@ -11,7 +11,8 @@ import (
 	"sort"
 )
 
-//Two Function for ordering my server queue: the first for the causal consistency and the other for the sequential consistency
+//Funzione per l'aggiunta in coda dei messaggi, i messaggi vengono ordinati in base al timestamp
+//scalare, lo usiamo per l'implementazione della consistenza causale
 
 func (s *Server) addToQueue(message Message) {
 	// Find the index to insert the message
@@ -58,11 +59,13 @@ func InitializeServerList() {
 	}
 }
 
+//Funzione per la rimozione del messaggio in coda
+
 func (s *Server) removeFromQueue(message Message) {
-	for i, msg := range s.LocalQueue { //I'm going to remove this message from my queue
+	for i, msg := range s.LocalQueue {
 		if message.Key == msg.Key && message.Value == msg.Value && message.ScalarTimestamp == msg.ScalarTimestamp { //I found the message
-			s.DataStore[msg.Key] = msg.Value                               //Insert message in my DS
-			s.LocalQueue = append(s.LocalQueue[:i], s.LocalQueue[i+1:]...) //Remove
+			s.DataStore[msg.Key] = msg.Value
+			s.LocalQueue = append(s.LocalQueue[:i], s.LocalQueue[i+1:]...)
 			break
 		}
 	}
@@ -97,14 +100,19 @@ func (s *Server) printDataStore() {
 	fmt.Printf("\n---------------------------------------\n")
 }
 
-func (s *Server) checkResponses(ch chan bool) bool { //Function that checks the responses
+//Non voglio che l'utente debba aspettare che tutti i server abbiano inserito il messaggio nel datastore,
+//questo perché alcuni server potrebbero star aspettando il messaggio successivo per poterlo salvare
+
+func (s *Server) checkResponses(ch chan bool) bool {
 	counter := 0
-	for response := range ch { //If for one of the servers the message is deliverable, return true
+	for response := range ch {
 		if response {
 			counter++
-			fmt.Println("Counter: ", counter)
-			return true
 		}
 	}
-	return false
+	if counter != 0 {
+		return true
+	} else {
+		return false
+	}
 }

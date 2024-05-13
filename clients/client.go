@@ -80,14 +80,14 @@ func addElementToDS(configuration string, key string, value string, config Confi
 
 	log.Printf(wait)
 
-	err := client.Call("Server.ChoiceConsistencyPut", args, &result) //Calling the AddElement routine
+	err := client.Call("Server.ChoiceConsistencyPut", args, &result) //Calling the SequentialSendElement routine
 	if err != nil {
 		log.Fatal(datastoreError, err)
 	}
 
 	var val string
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(500 * time.Millisecond)
 
 	if result.Done == true {
 		val = "Successful"
@@ -130,7 +130,7 @@ func getElementFromDS(key string, client *rpc.Client) {
 	log.Printf(call)
 	log.Printf(wait)
 	var returnValue string
-	err := client.Call("Server.GetElement", key, &returnValue)
+	err := client.Call("Server.SequentialGetElement", key, &returnValue)
 	fmt.Println("Get element with Key: ", key)
 	fmt.Println("Value: ", returnValue)
 
@@ -214,19 +214,23 @@ func main() {
 	//che mi dice se sto usando la configurazione locale (CONFIG = 1) o quella docker (CONFIG = 2)
 
 	config := loadConfig(configuration)
-
 	serverNumber, client := createClient(config)
 
 	for {
 		var actionToDo, key, value string
 		if configuration == "1" {
 			actionToDo = establishActionToDo()
+
 			//Devo prima di tutto andare a prendere la key per la ricerca nel datastore per qualsiasi configurazione
+
 			key = insertKey()
-			if actionToDo == "put" { //Se l'utente ha scelto di inserire un elemento nel datastore, deve inoltre fornirmi
+
+			if actionToDo == "put" {
+				//Se l'utente ha scelto di inserire un elemento nel datastore, deve inoltre fornirmi
 				//il valore da associare alla Key, che non può essere vuoto
 				value = insertValue()
 			}
+
 		} else if configuration == "2" {
 			actionToDo = os.Getenv("OPERATION")
 			fmt.Print("Enter value: ")
@@ -234,7 +238,11 @@ func main() {
 			if err != nil {
 				log.Fatal(err)
 			}
+		} else {
+			log.Fatal("Error in configuration file, CONFIG is set to ", configuration)
 		}
+
+		//In base all'azione che l'utente ha scelto di svolgere, vado a chiamare la funzione corrispondente
 
 		switch actionToDo {
 		case "not specified":
@@ -250,6 +258,8 @@ func main() {
 			log.Printf("Uncorrect flag")
 			return
 		}
+
+		//Chiedo all'utente se vuole continuare a svolgere operazioni sul datastore
 
 		var continueRunning string
 		fmt.Print("Do you want to continue? (yes/no): ")

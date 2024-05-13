@@ -7,15 +7,18 @@ import (
 	"sync"
 )
 
-func (s *Server) AddElement(message Message, response *Response) error {
+func (s *Server) SequentialSendElement(message Message, response *Response) error {
 	s.myMutex.Lock()
 	defer s.myMutex.Unlock()
 	s.MyScalarClock++
-	message.ScalarTimestamp = s.MyScalarClock //The timestamp of the message is my clock
+	message.ScalarTimestamp = s.MyScalarClock
 	message.ServerId = MyId
 
 	reply := &Response{Done: false, Deliverable: false}
-	s.sendToOtherServers(message, reply)
+	err := s.sendToOtherServers(message, reply)
+	if err != nil {
+		return fmt.Errorf("SequentialSendElement: error sending to other servers: %v", err)
+	}
 	fmt.Println("Deliverable: ", reply.Deliverable)
 	fmt.Println("Done: ", reply.Done)
 	response.Deliverable = reply.Deliverable
@@ -23,38 +26,38 @@ func (s *Server) AddElement(message Message, response *Response) error {
 	return nil
 }
 
-func (s *Server) sendToOtherServers(message Message, response *Response) {
-
+func (s *Server) sendToOtherServers(message Message, response *Response) error {
 	ch := make(chan bool, len(addresses.Addresses))
 	var wg sync.WaitGroup
 	for _, address := range addresses.Addresses {
 		wg.Add(1)
-		go func(addr string) {
-			defer wg.Done()
-			client, err := rpc.Dial("tcp", addr)
-			if err != nil {
-				log.Fatal("Error in sendToOtherServers function: ", err)
-			}
-			reply := &Response{Done: false, Deliverable: false}
-			if err1 := client.Call("Server.SaveElement", message, reply); err1 != nil {
-				log.Fatal("Error in sendToOtherServers function: ", err1)
-			}
-			select {
-			case ch <- reply.Deliverable: //Send the response to the channel
-			default:
-				fmt.Println("Channel was closed before it could be sent")
-			}
-
-			response.Done = reply.Done
-		}(address.Addr)
+		go s.sequentialSendToSingleServer(address.Addr, message, response, ch, &wg)
 	}
 	wg.Wait()
 	close(ch)
 	response.Deliverable = s.checkResponses(ch)
+	return nil
 }
 
-func (s *Server) SaveElement(message Message, result *Response) error {
+func (s *Server) sequentialSendToSingleServer(addr string, message Message, response *Response, ch chan bool, wg *sync.WaitGroup) {
+	defer wg.Done()
+	client, err := rpc.Dial("tcp", addr)
+	if err != nil {
+		log.Fatal("Error in sendToSingleServer function: ", err)
+	}
+	reply := &Response{Done: false, Deliverable: false}
+	if err1 := client.Call("Server.SequentialSendAck", message, reply); err1 != nil {
+		log.Fatal("Error in sendToSingleServer function: ", err1)
+	}
+	select {
+	case ch <- reply.Deliverable: //Send the response to the channel
+	default:
+		fmt.Println("Channel was closed before it could be sent")
+	}
+	response.Done = reply.Done
+}
 
+func (s *Server) SequentialSendAck(message Message, result *Response) error {
 	s.lockIfNeeded(message.ServerId)
 	if message.ServerId != MyId {
 		if message.ScalarTimestamp > s.MyScalarClock {
@@ -66,42 +69,35 @@ func (s *Server) SaveElement(message Message, result *Response) error {
 	messageAck := AckMessage{Element: message, MyServerId: MyId}
 	var wg sync.WaitGroup
 	for _, address := range addresses.Addresses {
-		fmt.Printf("Adding in SaveElement")
 		wg.Add(1)
-		ackSentCounter := 0
-
-		go func(addr string) {
-			defer wg.Done()
-			for {
-
-				client, err := rpc.Dial("tcp", addr)
-				if err != nil {
-					log.Fatal("Error dialing: ", err)
-				}
-				reply := &Response{Done: false, Deliverable: false} //Crea una funzione che lo fa
-				if err1 := client.Call("Server.SendAck", messageAck, reply); err1 != nil {
-					log.Fatalf("Error sending ack at server %d: %v", message.ServerId, err1)
-				}
-				if reply.Done {
-					result.Done = reply.Done
-					result.Deliverable = reply.Deliverable
-					break
-				}
-				if !reply.Done {
-					ackSentCounter++
-					if ackSentCounter == 5 {
-						break
-					}
-				}
-			}
-		}(address.Addr)
+		go s.sequentialSendAckToSingleServer(address.Addr, messageAck, result, &wg)
 	}
 	wg.Wait()
 	return nil
 }
 
-func (s *Server) SendAck(message AckMessage, reply *Response) error {
+func (s *Server) sequentialSendAckToSingleServer(addr string, messageAck AckMessage, result *Response, wg *sync.WaitGroup) {
+	defer wg.Done()
+	for {
+		client, err := rpc.Dial("tcp", addr)
+		if err != nil {
+			log.Fatal("Error dialing: ", err)
+		}
+		reply := &Response{Done: false, Deliverable: false}
+		if err1 := client.Call("Server.SequentialCheckingAck", messageAck, reply); err1 != nil {
+			log.Fatalf("Error sending ack at server %d: %v", messageAck.Element.ServerId, err1)
+		}
+		if reply.Deliverable {
+			result.Deliverable = reply.Deliverable
+		}
+		if reply.Done {
+			result.Done = reply.Done
+			break
+		}
+	}
+}
 
+func (s *Server) SequentialCheckingAck(message AckMessage, reply *Response) error {
 	s.lockIfNeeded(message.Element.ServerId)
 	for _, myValue := range s.LocalQueue {
 		if message.Element.Value == myValue.Value &&
@@ -110,18 +106,9 @@ func (s *Server) SendAck(message AckMessage, reply *Response) error {
 			fmt.Printf("I receive ACK from server %d\n", message.MyServerId)
 			myValue.numberAck++
 			if s.LocalQueue[0] == myValue && myValue.numberAck == len(addresses.Addresses) {
-				if message.Element.OperationType == 1 {
-					s.removeFromQueue(*myValue)
-					s.printDataStore()
-					reply.Deliverable = true //The element is deliverable
-				}
-				if message.Element.OperationType == 2 {
-					s.removeFromQueueDeleting(*myValue)
-					s.printDataStore()
-					reply.Deliverable = true
-				}
+				s.processAckMessage(message, myValue, reply)
 			}
-			reply.Done = true //I have received the ack
+			reply.Done = true //Ho ricevuto questo ACK
 			return nil
 		}
 	}
@@ -130,7 +117,20 @@ func (s *Server) SendAck(message AckMessage, reply *Response) error {
 	return nil
 }
 
-func (s *Server) GetElement(key string, reply *string) error {
+func (s *Server) processAckMessage(message AckMessage, myValue *Message, reply *Response) {
+	if message.Element.OperationType == 1 {
+		s.removeFromQueue(*myValue)
+		s.printDataStore()
+		reply.Deliverable = true
+	}
+	if message.Element.OperationType == 2 {
+		s.removeFromQueueDeleting(*myValue)
+		s.printDataStore()
+		reply.Deliverable = true
+	}
+}
+
+func (s *Server) SequentialGetElement(key string, reply *string) error {
 	s.myMutex.Lock()
 	defer s.myMutex.Unlock()
 	if value, ok := s.DataStore[key]; ok {

@@ -77,7 +77,7 @@ func (s *Server) ChoiceConsistencyPut(message Message, reply *Response) error { 
 	}
 
 	if s.modality == 0 {
-		err := s.AddElement(message, response)
+		err := s.SequentialSendElement(message, response)
 		if err != nil {
 			log.Fatal(datastoreError, err)
 		}
@@ -99,7 +99,7 @@ func (s *Server) ChoiceConsistencyDelete(message Message, reply *Response) error
 	}
 
 	if s.modality == 0 {
-		err := s.AddElement(message, response)
+		err := s.SequentialSendElement(message, response)
 		if err != nil {
 			log.Fatal(datastoreErrorDeleting, err)
 		}
@@ -118,7 +118,7 @@ func (s *Server) ChoiceConsistencyGet(message Message, reply *string) error {
 
 	var response *string
 	if s.modality == 0 { //Sequential Consistency
-		err := s.GetElement(message.Key, response)
+		err := s.SequentialGetElement(message.Key, response)
 		if err != nil {
 			log.Fatal(datastoreErrorDeleting, err)
 		}

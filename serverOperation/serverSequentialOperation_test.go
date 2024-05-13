@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// TestAddElementRace testa la funzione AddElement in modalità race.
+// TestAddElementRace testa la funzione SequentialSendElement in modalità race.
 func TestAddElementRace(t *testing.T) {
 	log.Println("Test 1")
 	// Creo un nuovo server per il test
@@ -35,10 +35,10 @@ func TestAddElementRace(t *testing.T) {
 				Done: false,
 			}
 
-			// Chiamo la funzione AddElement del server con il messaggio e il reply creati sopra
-			err := server.AddElement(message, reply)
+			// Chiamo la funzione SequentialSendElement del server con il messaggio e il reply creati sopra
+			err := server.SequentialSendElement(message, reply)
 			if err != nil {
-				t.Errorf("Errore in AddElement: %v", err)
+				t.Errorf("Errore in SequentialSendElement: %v", err)
 			}
 		}()
 	}
@@ -68,7 +68,10 @@ func TestSendToOtherServersRace(t *testing.T) {
 				defer wg.Done()
 
 				// Eseguo la funzione sendToOtherServers per ogni indirizzo
-				server.sendToOtherServers(msg, &Response{})
+				err := server.sendToOtherServers(msg, &Response{})
+				if err != nil {
+					log.Fatal("Errore in sendToOtherServers: ", err)
+				}
 			}(addr, Message{})
 		}
 	}
@@ -77,7 +80,7 @@ func TestSendToOtherServersRace(t *testing.T) {
 	wg.Wait()
 }
 
-// TestSaveElementRace testa la funzione SaveElement in modalità race.
+// TestSaveElementRace testa la funzione SequentialSendAck in modalità race.
 func TestSaveElementRace(t *testing.T) {
 	log.Println("Test 3")
 	// Creo un nuovo server per il test
@@ -109,10 +112,10 @@ func TestSaveElementRace(t *testing.T) {
 				Done: false,
 			}
 
-			// Chiamo la funzione SaveElement del server con il messaggio e il reply creati sopra
-			err := server.SaveElement(message, reply)
+			// Chiamo la funzione SequentialSendAck del server con il messaggio e il reply creati sopra
+			err := server.SequentialSendAck(message, reply)
 			if err != nil {
-				t.Errorf("Errore in SaveElement: %v", err)
+				t.Errorf("Errore in SequentialSendAck: %v", err)
 			}
 		}(addr.Addr)
 	}
@@ -153,10 +156,10 @@ func TestRace(t *testing.T) {
 				Done: false,
 			}
 
-			// Chiamo la funzione AddElement del server con il messaggio e il reply creati sopra
-			err := server.AddElement(message, reply)
+			// Chiamo la funzione SequentialSendElement del server con il messaggio e il reply creati sopra
+			err := server.SequentialSendElement(message, reply)
 			if err != nil {
-				t.Errorf("Errore in AddElement: %v", err)
+				t.Errorf("Errore in SequentialSendElement: %v", err)
 			}
 		}()
 	}
@@ -170,7 +173,10 @@ func TestRace(t *testing.T) {
 				defer wg.Done()
 
 				// Eseguo la funzione sendToOtherServers per ogni indirizzo
-				server.sendToOtherServers(msg, &Response{})
+				err := server.sendToOtherServers(msg, &Response{})
+				if err != nil {
+					log.Fatal("Errore in sendToOtherServers: ", err)
+				}
 			}(addr, Message{})
 		}
 	}
