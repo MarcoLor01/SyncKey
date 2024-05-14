@@ -16,8 +16,9 @@ type Message struct {
 } //Struct of a message between Servers
 
 type Response struct { //Standard response from RPC
-	Done        bool
-	Deliverable bool
+	Done                    bool
+	Deliverable             bool
+	DeliverableServerNumber int
 }
 
 var MyId int //ID of this server
@@ -73,7 +74,8 @@ func CreateNewCausalDataStore() *Server {
 func (s *Server) ChoiceConsistencyPut(message Message, reply *Response) error { //Function that chooses the consistency of the server
 
 	response := &Response{
-		Done: false,
+		Done:        false,
+		Deliverable: false,
 	}
 
 	if s.modality == 0 {
@@ -88,7 +90,7 @@ func (s *Server) ChoiceConsistencyPut(message Message, reply *Response) error { 
 		}
 	}
 
-	reply.Done = response.Done
+	reply.Deliverable = response.Deliverable
 	return nil
 }
 
@@ -110,7 +112,7 @@ func (s *Server) ChoiceConsistencyDelete(message Message, reply *Response) error
 		}
 	}
 
-	reply.Done = response.Done
+	reply.Deliverable = response.Deliverable
 	return nil
 }
 

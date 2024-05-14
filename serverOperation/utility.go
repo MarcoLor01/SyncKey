@@ -105,7 +105,9 @@ func (s *Server) printDataStore() {
 
 func (s *Server) checkResponses(ch chan bool) bool {
 	counter := 0
+
 	for response := range ch {
+		fmt.Println("Risultato: ", response)
 		if response {
 			counter++
 		}
@@ -115,4 +117,17 @@ func (s *Server) checkResponses(ch chan bool) bool {
 	} else {
 		return false
 	}
+}
+
+func (s *Server) checkSequentialResponses(ch chan bool) int {
+	counter := 0
+
+	for response := range ch {
+		fmt.Println("Risultato :) ", response)
+		if response {
+			counter++
+			fmt.Println(counter)
+		}
+	}
+	return counter
 }

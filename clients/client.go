@@ -89,7 +89,7 @@ func addElementToDS(configuration string, key string, value string, config Confi
 
 	time.Sleep(500 * time.Millisecond)
 
-	if result.Done == true {
+	if result.Deliverable {
 		val = "Successful"
 	} else {
 		val = "Failed"
@@ -117,7 +117,7 @@ func deleteElementFromDS(key string, config Config, client *rpc.Client) {
 
 	time.Sleep(1 * time.Second)
 
-	if result.Done == true {
+	if result.Deliverable {
 		val1 = "Successful"
 	} else {
 		val1 = "Failed"
@@ -238,7 +238,7 @@ func getAction(configuration string) (string, string, string) {
 
 func main() {
 
-	time.Sleep(10 * time.Second) //Attendo che i server siano pronti
+	time.Sleep(3 * time.Second) //Attendo che i server siano pronti
 
 	configuration := loadEnvironment()
 

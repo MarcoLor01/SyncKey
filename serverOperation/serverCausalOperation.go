@@ -15,7 +15,7 @@ func (s *Server) CausalSendElement(message Message, reply *Response) error {
 
 	response := s.createResponse()
 	s.sendToOtherServersCausal(message, response)
-	reply.Done = response.Done
+	reply.Deliverable = response.Deliverable
 	return nil
 }
 
@@ -31,7 +31,7 @@ func (message *Message) prepareMessage(clock []int, id int) {
 }
 
 func (s *Server) createResponse() *Response {
-	return &Response{Done: false}
+	return &Response{Deliverable: false}
 }
 
 func (s *Server) sendToOtherServersCausal(message Message, response *Response) {
@@ -47,10 +47,10 @@ func (s *Server) sendToOtherServersCausal(message Message, response *Response) {
 	wg.Wait()
 	close(ch)
 
-	response.Done = s.checkResponses(ch) //Check the responses
+	response.Deliverable = s.checkResponses(ch) //Check delle risposte
 }
 
-func (s *Server) sendToSingleServer(address ServerAddress, message Message, ch chan bool, wg *sync.WaitGroup) { //Function that sends the message to a single server
+func (s *Server) sendToSingleServer(address ServerAddress, message Message, ch chan bool, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	client, err := rpc.Dial("tcp", address.Addr)
@@ -66,7 +66,7 @@ func (s *Server) sendToSingleServer(address ServerAddress, message Message, ch c
 
 	}(client)
 
-	reply := &Response{Done: false}
+	reply := &Response{Deliverable: false}
 
 	if err1 := client.Call("Server.SaveElementCausal", message, reply); err1 != nil {
 		log.Fatal("RPC call error:", err)
@@ -74,7 +74,7 @@ func (s *Server) sendToSingleServer(address ServerAddress, message Message, ch c
 	}
 
 	select {
-	case ch <- reply.Done:
+	case ch <- reply.Deliverable:
 	default:
 		log.Fatal("Channel was closed before it could be sent")
 	}
@@ -149,7 +149,7 @@ func (s *Server) isMessageDeliverable(message Message) bool {
 
 func (s *Server) processDeliverableMessage(message Message, reply *Response) {
 	s.updateTimestamp(message)
-	reply.Done = true
+	reply.Deliverable = true
 	fmt.Println("The message is deliverable")
 	if message.OperationType == 1 {
 		s.removeFromQueue(message)
