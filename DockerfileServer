@@ -15,3 +15,4 @@ COPY . .
 EXPOSE ${SERVER_ADDR}
 CMD ["sh", "-cx", "go run ${SERVER_FILE}"]
 #CMD go run ${SERVER_FILE}
+

@@ -56,31 +56,22 @@ func createClient(config Config) (int, *rpc.Client) {
 	return serverNumber, client
 }
 
-func addElementToDS(configuration string, key string, value string, config Config, serverNumber int, client *rpc.Client) {
+func addElementToDsSequential(key string, value string, config Config, serverNumber int, client *rpc.Client) {
 
 	var n1, n2 string
-	if configuration == "1" {
-		n1 = key
-		n2 = value
-	}
-	if configuration == "2" {
-		n1 = os.Getenv("KEY")
-		n2 = os.Getenv("VALUE")
-	}
+	n1 = key
+	n2 = value
 
-	log.Printf("Adding element with Key: %s, and Value: %s contacting %s", n1, n2, config.Address[serverNumber].Addr) // make([]int, len(config.Address)),
+	log.Printf("Adding element with Key: %s, and Value: %s contacting %s", n1, n2, config.Address[serverNumber].Addr)
 
-	args := serverOperation.Message{Key: n1, Value: n2, VectorTimestamp: make([]int, len(config.Address)), OperationType: 1}
+	args := serverOperation.MessageSequential{Key: n1, Value: n2, OperationType: 1}
 	log.Printf(call)
 
-	result := &serverOperation.Response{
-		Done:        false,
-		Deliverable: false,
-	}
+	result := serverOperation.ResponseSequential{Deliverable: false, Done: false}
 
 	log.Printf(wait)
 
-	err := client.Call("Server.ChoiceConsistencyPut", args, &result) //Calling the SequentialSendElement routine
+	err := client.Call("ServerSequential.SequentialSendElement", args, &result) //Calling the SequentialSendElement routine
 	if err != nil {
 		log.Fatal(datastoreError, err)
 	}
@@ -97,19 +88,51 @@ func addElementToDS(configuration string, key string, value string, config Confi
 	log.Println(val)
 }
 
-func deleteElementFromDS(key string, config Config, client *rpc.Client) {
-	n1 := key
+func addElementToDsCausal(key string, value string, config Config, serverNumber int, client *rpc.Client) {
 
-	log.Printf("Get element with Key: %s\n", n1)
-	args := serverOperation.Message{Key: n1, VectorTimestamp: make([]int, len(config.Address)), OperationType: 2}
+	var n1, n2 string
+	n1 = key
+	n2 = value
+
+	log.Printf("Adding element with Key: %s, and Value: %s contacting %s", n1, n2, config.Address[serverNumber].Addr)
+
+	args := serverOperation.MessageCausal{Key: n1, Value: n2, VectorTimestamp: make([]int, len(config.Address)), OperationType: 1}
 	log.Printf(call)
 
-	result := &serverOperation.Response{
-		Done: false,
-	}
+	result := serverOperation.ResponseCausal{Deliverable: false}
 
 	log.Printf(wait)
-	err := client.Call("Server.ChoiceConsistencyDelete", args, &result)
+
+	err := client.Call("ServerCausal.CausalSendElement", args, &result) //Calling the CausalSendElement routine
+	if err != nil {
+		log.Fatal(datastoreError, err)
+	}
+
+	var val string
+
+	time.Sleep(500 * time.Millisecond)
+
+	if result.Deliverable {
+		val = "Successful"
+	} else {
+		val = "Failed"
+	}
+	log.Println(val)
+}
+
+func deleteElementFromDsSequential(key string, config Config, serverNumber int, client *rpc.Client) {
+	n1 := key
+
+	log.Printf("Get element with Key: %s contacting %s", n1, config.Address[serverNumber].Addr)
+
+	args := serverOperation.MessageSequential{Key: n1, OperationType: 2}
+	result := serverOperation.ResponseSequential{Deliverable: false, Done: false}
+
+	log.Printf(call)
+	log.Printf(wait)
+
+	err := client.Call("ServerSequential.SequentialSendElement", args, &result)
+
 	if err != nil {
 		log.Fatal(datastoreError, err)
 	}
@@ -125,12 +148,61 @@ func deleteElementFromDS(key string, config Config, client *rpc.Client) {
 	log.Println(val1)
 }
 
-func getElementFromDS(key string, client *rpc.Client) {
+func deleteElementFromDsCausal(key string, config Config, serverNumber int, client *rpc.Client) {
+	n1 := key
+
+	log.Printf("Get element with Key: %s contacting %s\n", n1, config.Address[serverNumber].Addr)
+
+	args := serverOperation.MessageCausal{Key: n1, VectorTimestamp: make([]int, len(config.Address)), OperationType: 2}
+	result := serverOperation.ResponseCausal{Deliverable: false}
+
+	log.Printf(call)
+	log.Printf(wait)
+
+	err := client.Call("ServerCausal.CausalSendElement", args, &result)
+
+	if err != nil {
+		log.Fatal(datastoreError, err)
+	}
+	var val1 string
+
+	time.Sleep(1 * time.Second)
+
+	if result.Deliverable {
+		val1 = "Successful"
+	} else {
+		val1 = "Failed"
+	}
+	log.Println(val1)
+}
+
+func getElementFromDsCausal(key string, client *rpc.Client) {
 
 	log.Printf(call)
 	log.Printf(wait)
 	var returnValue string
-	err := client.Call("Server.SequentialGetElement", key, &returnValue)
+	err := client.Call("ServerCausal.CausalGetElement", key, &returnValue)
+	fmt.Println("Get element with Key: ", key)
+	fmt.Println("Value: ", returnValue)
+
+	if err != nil {
+		log.Fatal(datastoreError, err)
+	}
+	time.Sleep(1 * time.Second)
+
+	if returnValue != "" {
+		log.Printf("Element with Key %s, have value: %s", key, returnValue)
+	} else {
+		log.Printf("No element with Key: %s\n", key)
+	}
+}
+
+func getElementFromDsSequential(key string, client *rpc.Client) {
+
+	log.Printf(call)
+	log.Printf(wait)
+	var returnValue string
+	err := client.Call("ServerSequential.SequentialGetElement", key, &returnValue)
 	fmt.Println("Get element with Key: ", key)
 	fmt.Println("Value: ", returnValue)
 
@@ -211,53 +283,83 @@ func loadEnvironment() string {
 	return configuration
 }
 
-func getAction(configuration string) (string, string, string) {
+func getAction() (string, string, string) {
 	var actionToDo, key, value string
 
-	if configuration == "1" {
-		actionToDo = establishActionToDo()
-		//Devo prima di tutto andare a prendere la key per la ricerca nel datastore per qualsiasi configurazione
-		key = insertKey()
-		if actionToDo == "put" {
-			//Se l'utente ha scelto di inserire un elemento nel datastore, deve inoltre fornirmi
-			//il valore da associare alla Key, che non può essere vuoto
-			value = insertValue()
-		}
-	} else if configuration == "2" {
-		actionToDo = os.Getenv("OPERATION")
-		fmt.Print("Enter value: ")
-		_, err := fmt.Scan(&value)
-		if err != nil {
-			log.Fatal(err)
-		}
-	} else {
-		log.Fatal("Error in configuration file, CONFIG is set to ", configuration)
+	actionToDo = establishActionToDo()
+	//Devo prima di tutto andare a prendere la key per la ricerca nel datastore per qualsiasi configurazione
+	key = insertKey()
+	if actionToDo == "put" {
+		//Se l'utente ha scelto di inserire un elemento nel datastore, deve inoltre fornirmi
+		//il valore da associare alla Key, che non può essere vuoto
+		value = insertValue()
 	}
 	return actionToDo, key, value
 }
 
+func getConsistency() (int, string) {
+	var consistencyType int
+	for {
+		fmt.Print("Enter the consistency type (0 for Causal, 1 for Sequential): ")
+		_, err := fmt.Scan(&consistencyType)
+		if err != nil {
+			log.Fatal("Error reading input: ", err)
+		}
+
+		switch consistencyType {
+		case 0:
+			return 0, "Causal"
+		case 1:
+			return 1, "Sequential"
+		default:
+			fmt.Println("Invalid input. Please enter 0 for Causal or 1 for Sequential.")
+		}
+	}
+}
+
 func main() {
 
-	time.Sleep(3 * time.Second) //Attendo che i server siano pronti
+	//time.Sleep(10 * time.Second) //Attendo che i server siano pronti
 
+	consistency, consistencyString := getConsistency()
+	fmt.Println("The client is using server with the consistency: ", consistencyString)
 	configuration := loadEnvironment()
 
 	config := loadConfig(configuration)
 	serverNumber, client := createClient(config)
 
+	//Voglio garantire trasparenza al client riguardo al tipo di consistenza che voglio implementare,
+	//eseguo quindi una chiamata RPC a un server per sapere la modalità con cui il server è stato avviato
+
 	for {
-		actionToDo, key, value := getAction(configuration)
+		actionToDo, key, value := getAction()
 		//In base all'azione che l'utente ha scelto di svolgere, vado a chiamare la funzione corrispondente
 		switch actionToDo {
 		case "not specified":
 			log.Printf("When you call the datastore you have to specify the action with -a (action): \n-a put with key and value for a put operation, \n-a get with the key for a get operation, \n-a delete with the key for a delete operation\n")
 			os.Exit(-1)
+
 		case "put":
-			addElementToDS(configuration, key, value, config, serverNumber, client)
+			if consistency == 0 {
+				addElementToDsCausal(key, value, config, serverNumber, client)
+			} else {
+				addElementToDsSequential(key, value, config, serverNumber, client)
+			}
+
 		case "delete":
-			deleteElementFromDS(key, config, client)
+			if consistency == 0 {
+				deleteElementFromDsCausal(key, config, serverNumber, client)
+			} else {
+				deleteElementFromDsSequential(key, config, serverNumber, client)
+			}
+
 		case "get":
-			getElementFromDS(key, client)
+			if consistency == 0 {
+				getElementFromDsCausal(key, client)
+			} else {
+				getElementFromDsSequential(key, client)
+			}
+
 		default:
 			log.Printf("Uncorrect flag")
 			return

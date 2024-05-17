@@ -14,7 +14,6 @@ services:
     networks:
       - mynet
     environment:
-      - MOD
       - CONFIG=${CONFIG}
     env_file:
       - .env
@@ -33,7 +32,6 @@ services:
     networks:
       - mynet
     environment:
-      - MOD
       - CONFIG=${CONFIG}
     env_file:
       - .env
@@ -52,7 +50,6 @@ services:
     networks:
       - mynet
     environment:
-      - MOD
       - CONFIG=${CONFIG}
     env_file:
       - .env
@@ -71,7 +68,6 @@ services:
     networks:
       - mynet
     environment:
-      - MOD
       - CONFIG=${CONFIG}
     env_file:
       - .env

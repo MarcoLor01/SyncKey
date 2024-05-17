@@ -4,29 +4,37 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"sort"
 	"time"
 
 	"log"
 	"os"
-	"sort"
 )
 
 //Funzione per l'aggiunta in coda dei messaggi, i messaggi vengono ordinati in base al timestamp
 //scalare, lo usiamo per l'implementazione della consistenza causale
 
-func (s *Server) addToQueue(message Message) {
+func (s *ServerSequential) addToQueueSequential(message MessageSequential) {
 	// Find the index to insert the message
 	for i, element := range s.LocalQueue {
 		if message.Key == element.Key {
 			s.LocalQueue[i] = &message // Add the message to the queue
+			s.orderQueue()
 			return
 		}
 	}
 
 	// Insert the message at the end
 	s.LocalQueue = append(s.LocalQueue, &message)
+	s.orderQueue()
 
-	// Sort the queue based on the scalar timestamp
+}
+
+func (s *ServerCausal) addToQueueCausal(message MessageCausal) {
+	s.LocalQueue = append(s.LocalQueue, &message)
+}
+
+func (s *ServerSequential) orderQueue() {
 	sort.Slice(s.LocalQueue, func(i, j int) bool {
 		return s.LocalQueue[i].ScalarTimestamp < s.LocalQueue[j].ScalarTimestamp
 	})
@@ -59,11 +67,9 @@ func InitializeServerList() {
 	}
 }
 
-//Funzione per la rimozione del messaggio in coda
-
-func (s *Server) removeFromQueue(message Message) {
+func (s *ServerCausal) removeFromQueueCausal(message MessageCausal) {
 	for i, msg := range s.LocalQueue {
-		if message.Key == msg.Key && message.Value == msg.Value && message.ScalarTimestamp == msg.ScalarTimestamp { //I found the message
+		if message.Key == msg.Key && message.Value == msg.Value && reflect.DeepEqual(message.VectorTimestamp, msg.VectorTimestamp) == true {
 			s.DataStore[msg.Key] = msg.Value
 			s.LocalQueue = append(s.LocalQueue[:i], s.LocalQueue[i+1:]...)
 			break
@@ -71,27 +77,46 @@ func (s *Server) removeFromQueue(message Message) {
 	}
 }
 
-func (s *Server) removeFromQueueDeleting(message Message) {
-	for i, msg := range s.LocalQueue { //I'm going to remove this message from my queue
-		if message.Key == msg.Key && message.Value == msg.Value && message.ScalarTimestamp == msg.ScalarTimestamp {
-			delete(s.DataStore, msg.Key)                                   //Delete the message from my DS
-			s.LocalQueue = append(s.LocalQueue[:i], s.LocalQueue[i+1:]...) //Remove
-			break
-		}
-	}
-}
-
-func (s *Server) removeFromQueueDeletingCausal(message Message) {
+func (s *ServerCausal) removeFromQueueDeletingCausal(message MessageCausal) {
 	for i, msg := range s.LocalQueue {
 		if message.Key == msg.Key && message.Value == msg.Value && reflect.DeepEqual(message.VectorTimestamp, msg.VectorTimestamp) == true {
-			delete(s.DataStore, msg.Key)                                   //Delete the message from my DS
-			s.LocalQueue = append(s.LocalQueue[:i], s.LocalQueue[i+1:]...) //Remove
+			delete(s.DataStore, msg.Key)
+			s.LocalQueue = append(s.LocalQueue[:i], s.LocalQueue[i+1:]...)
 			break
 		}
 	}
 }
 
-func (s *Server) printDataStore() {
+func (s *ServerSequential) removeFromQueueSequential(message MessageSequential) {
+	for i, msg := range s.LocalQueue {
+		if message.Key == msg.Key && message.Value == msg.Value && message.ScalarTimestamp == msg.ScalarTimestamp {
+			s.DataStore[msg.Key] = msg.Value
+			s.LocalQueue = append(s.LocalQueue[:i], s.LocalQueue[i+1:]...)
+			break
+		}
+	}
+}
+
+func (s *ServerSequential) removeFromQueueDeletingSequential(message MessageSequential) {
+	for i, msg := range s.LocalQueue {
+		if message.Key == msg.Key && message.Value == msg.Value && message.ScalarTimestamp == msg.ScalarTimestamp {
+			delete(s.DataStore, msg.Key)
+			s.LocalQueue = append(s.LocalQueue[:i], s.LocalQueue[i+1:]...)
+			break
+		}
+	}
+}
+
+func (s *ServerCausal) printDataStore() {
+	time.Sleep(3 * time.Millisecond)
+	fmt.Printf("\n\n---------------DATASTORE---------------\n")
+	for key, value := range s.DataStore {
+		fmt.Printf("Key: %s, Value: %s\n", key, value)
+	}
+	fmt.Printf("\n---------------------------------------\n")
+}
+
+func (s *ServerSequential) printDataStore() {
 	time.Sleep(3 * time.Millisecond)
 	fmt.Printf("\n\n---------------DATASTORE---------------\n")
 	for key, value := range s.DataStore {
@@ -103,7 +128,7 @@ func (s *Server) printDataStore() {
 //Non voglio che l'utente debba aspettare che tutti i server abbiano inserito il messaggio nel datastore,
 //questo perché alcuni server potrebbero star aspettando il messaggio successivo per poterlo salvare
 
-func (s *Server) checkResponses(ch chan bool) bool {
+func (s *ServerCausal) checkResponses(ch chan bool) bool {
 	counter := 0
 
 	for response := range ch {
@@ -119,7 +144,7 @@ func (s *Server) checkResponses(ch chan bool) bool {
 	}
 }
 
-func (s *Server) checkSequentialResponses(ch chan bool) int {
+func (s *ServerSequential) checkSequentialResponses(ch chan bool) int {
 	counter := 0
 
 	for response := range ch {

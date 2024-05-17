@@ -13,6 +13,6 @@ COPY . .
 
 # Expose port 8080 to the outside world
 EXPOSE 8080
-
+RUN go build -o clients/ ./clients/client.go
 # Command to run the executable
-CMD ["sh", "-cx", "cd clients && go run client.go"]
+CMD ["./clients/client"]

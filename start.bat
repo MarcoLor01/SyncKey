@@ -23,7 +23,7 @@ if %CONFIG% == 1 (
     REM Esecuzione del client in un nuovo terminale cmd.exe
     start cmd.exe /K "cd %client_files% && go run client.go"
 ) else if %CONFIG% == 2 (
-    start cmd.exe /K "docker compose up --build"
+    start cmd.exe /K "docker compose up --build -d"
 ) else (
     echo Errore: CONFIG deve essere 1 o 2.
     exit /b 1
