@@ -317,6 +317,30 @@ func getConsistency() (int, string) {
 	}
 }
 
+func handlePutAction(consistency int, key string, value string, config Config, serverNumber int, client *rpc.Client) {
+	if consistency == 0 {
+		addElementToDsCausal(key, value, config, serverNumber, client)
+	} else {
+		addElementToDsSequential(key, value, config, serverNumber, client)
+	}
+}
+
+func handleDeleteAction(consistency int, key string, config Config, serverNumber int, client *rpc.Client) {
+	if consistency == 0 {
+		deleteElementFromDsCausal(key, config, serverNumber, client)
+	} else {
+		deleteElementFromDsSequential(key, config, serverNumber, client)
+	}
+}
+
+func handleGetAction(consistency int, key string, client *rpc.Client) {
+	if consistency == 0 {
+		getElementFromDsCausal(key, client)
+	} else {
+		getElementFromDsSequential(key, client)
+	}
+}
+
 func main() {
 
 	//time.Sleep(10 * time.Second) //Attendo che i server siano pronti
@@ -340,26 +364,11 @@ func main() {
 			os.Exit(-1)
 
 		case "put":
-			if consistency == 0 {
-				addElementToDsCausal(key, value, config, serverNumber, client)
-			} else {
-				addElementToDsSequential(key, value, config, serverNumber, client)
-			}
-
+			handlePutAction(consistency, key, value, config, serverNumber, client)
 		case "delete":
-			if consistency == 0 {
-				deleteElementFromDsCausal(key, config, serverNumber, client)
-			} else {
-				deleteElementFromDsSequential(key, config, serverNumber, client)
-			}
-
+			handleDeleteAction(consistency, key, config, serverNumber, client)
 		case "get":
-			if consistency == 0 {
-				getElementFromDsCausal(key, client)
-			} else {
-				getElementFromDsSequential(key, client)
-			}
-
+			handleGetAction(consistency, key, client)
 		default:
 			log.Printf("Uncorrect flag")
 			return
