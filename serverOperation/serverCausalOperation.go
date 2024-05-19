@@ -9,6 +9,7 @@ import (
 
 func (s *ServerCausal) CausalSendElement(message MessageCausal, reply *ResponseCausal) error {
 	s.myMutex.Lock()
+	fmt.Println("Inizio operazione ")
 	defer s.myMutex.Unlock()
 	s.incrementMyTimestamp()
 	message.prepareMessage(s.MyClock, MyId) //Setto il timestamp e il mio id come sender

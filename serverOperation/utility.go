@@ -15,6 +15,9 @@ import (
 //scalare, lo usiamo per l'implementazione della consistenza causale
 
 func (s *ServerSequential) addToQueueSequential(message MessageSequential) {
+	s.myQueueMutex.Lock()
+	defer s.myQueueMutex.Unlock()
+	message.InsertQueueTimestamp = time.Now().UnixNano()
 	// Find the index to insert the message
 	for i, element := range s.LocalQueue {
 		if message.Key == element.Key {
@@ -23,21 +26,22 @@ func (s *ServerSequential) addToQueueSequential(message MessageSequential) {
 			return
 		}
 	}
-
 	// Insert the message at the end
 	s.LocalQueue = append(s.LocalQueue, &message)
 	s.orderQueue()
-
-}
-
-func (s *ServerCausal) addToQueueCausal(message MessageCausal) {
-	s.LocalQueue = append(s.LocalQueue, &message)
 }
 
 func (s *ServerSequential) orderQueue() {
 	sort.Slice(s.LocalQueue, func(i, j int) bool {
-		return s.LocalQueue[i].ScalarTimestamp < s.LocalQueue[j].ScalarTimestamp
+		if s.LocalQueue[i].ScalarTimestamp != s.LocalQueue[j].ScalarTimestamp {
+			return s.LocalQueue[i].ScalarTimestamp < s.LocalQueue[j].ScalarTimestamp
+		}
+		return s.LocalQueue[i].InsertQueueTimestamp < s.LocalQueue[j].InsertQueueTimestamp
 	})
+}
+
+func (s *ServerCausal) addToQueueCausal(message MessageCausal) {
+	s.LocalQueue = append(s.LocalQueue, &message)
 }
 
 //Initialize the list of the server in the configuration file
@@ -146,12 +150,9 @@ func (s *ServerCausal) checkResponses(ch chan bool) bool {
 
 func (s *ServerSequential) checkSequentialResponses(ch chan bool) int {
 	counter := 0
-
 	for response := range ch {
-		fmt.Println("Risultato :) ", response)
 		if response {
 			counter++
-			fmt.Println(counter)
 		}
 	}
 	return counter
