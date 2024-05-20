@@ -120,6 +120,35 @@ func getConsistency() (int, string, error) {
 	}
 }
 
+func switchAction(actionToDo, key, value string, consistency int, serverNumber int, config clientCommon.Config, client *rpc.Client) {
+
+	switch actionToDo {
+	case "not specified":
+		log.Printf("When you call the datastore you have to specify the action with -a (action): \n-a put with key and value for a put operation, \n-a get with the key for a get operation, \n-a delete with the key for a delete operation\n")
+		os.Exit(-1)
+
+	case "put":
+		err := clientCommon.HandlePutAction(consistency, key, value, config, serverNumber, client)
+		if err != nil {
+			log.Fatal(err)
+		}
+	case "delete":
+		err := clientCommon.HandleDeleteAction(consistency, key, config, serverNumber, client)
+		if err != nil {
+			log.Fatal(err)
+		}
+	case "get":
+		err := clientCommon.HandleGetAction(consistency, key, client)
+		if err != nil {
+			log.Fatal(err)
+		}
+	default:
+		log.Printf("Uncorrect flag")
+		return
+	}
+
+}
+
 func main() {
 
 	//time.Sleep(10 * time.Second) //Attendo che i server siano pronti
@@ -148,31 +177,7 @@ func main() {
 			log.Fatal(err)
 		}
 		//In base all'azione che l'utente ha scelto di svolgere, vado a chiamare la funzione corrispondente
-		switch actionToDo {
-		case "not specified":
-			log.Printf("When you call the datastore you have to specify the action with -a (action): \n-a put with key and value for a put operation, \n-a get with the key for a get operation, \n-a delete with the key for a delete operation\n")
-			os.Exit(-1)
-
-		case "put":
-			err := clientCommon.HandlePutAction(consistency, key, value, config, serverNumber, client)
-			if err != nil {
-				log.Fatal(err)
-			}
-		case "delete":
-			err := clientCommon.HandleDeleteAction(consistency, key, config, serverNumber, client)
-			if err != nil {
-				log.Fatal(err)
-			}
-		case "get":
-			err := clientCommon.HandleGetAction(consistency, key, client)
-			if err != nil {
-				log.Fatal(err)
-			}
-		default:
-			log.Printf("Uncorrect flag")
-			return
-		}
-
+		switchAction(actionToDo, key, value, consistency, serverNumber, config, client)
 		//Chiedo all'utente se vuole continuare a svolgere operazioni sul datastore
 
 		var continueRunning string
