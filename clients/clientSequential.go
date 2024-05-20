@@ -12,6 +12,7 @@ func funcServer1(wg *sync.WaitGroup, client *rpc.Client, config clientCommon.Con
 	//Write W(x)a su processo 0
 	fmt.Printf("Write W(x)a su processo 0\n")
 	clientCommon.HandlePutAction(consistency, "z", "c", config, 0, client)
+	clientCommon.HandlePutAction(consistency, "ciao", "df", config, 0, client)
 }
 
 func funcServer2(wg *sync.WaitGroup, client *rpc.Client, config clientCommon.Config, consistency int) {

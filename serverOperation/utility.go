@@ -20,23 +20,27 @@ func (s *ServerSequential) addToQueueSequential(message MessageSequential) {
 	message.InsertQueueTimestamp = time.Now().UnixNano()
 	// Find the index to insert the message
 	for i, element := range s.LocalQueue {
-		if message.Key == element.Key {
-			s.LocalQueue[i] = &message // Add the message to the queue
+		if message.Key == element.MessageSeq.Key {
+			s.LocalQueue[i].MessageSeq = &message // Add the message to the queue
 			s.orderQueue()
 			return
 		}
 	}
+	msgQueue := &MessageSeqQueue{
+		MessageSeq: &message,
+		Inserted:   false,
+	}
 	// Insert the message at the end
-	s.LocalQueue = append(s.LocalQueue, &message)
+	s.LocalQueue = append(s.LocalQueue, msgQueue)
 	s.orderQueue()
 }
 
 func (s *ServerSequential) orderQueue() {
 	sort.Slice(s.LocalQueue, func(i, j int) bool {
-		if s.LocalQueue[i].ScalarTimestamp != s.LocalQueue[j].ScalarTimestamp {
-			return s.LocalQueue[i].ScalarTimestamp < s.LocalQueue[j].ScalarTimestamp
+		if s.LocalQueue[i].MessageSeq.ScalarTimestamp != s.LocalQueue[j].MessageSeq.ScalarTimestamp {
+			return s.LocalQueue[i].MessageSeq.ScalarTimestamp < s.LocalQueue[j].MessageSeq.ScalarTimestamp
 		}
-		return s.LocalQueue[i].InsertQueueTimestamp < s.LocalQueue[j].InsertQueueTimestamp
+		return s.LocalQueue[i].MessageSeq.InsertQueueTimestamp < s.LocalQueue[j].MessageSeq.InsertQueueTimestamp
 	})
 }
 
@@ -93,8 +97,8 @@ func (s *ServerCausal) removeFromQueueDeletingCausal(message MessageCausal) {
 
 func (s *ServerSequential) removeFromQueueSequential(message MessageSequential) {
 	for i, msg := range s.LocalQueue {
-		if message.Key == msg.Key && message.Value == msg.Value && message.ScalarTimestamp == msg.ScalarTimestamp {
-			s.DataStore[msg.Key] = msg.Value
+		if message.Key == msg.MessageSeq.Key && message.Value == msg.MessageSeq.Value && message.ScalarTimestamp == msg.MessageSeq.ScalarTimestamp {
+			s.DataStore[msg.MessageSeq.Key] = msg.MessageSeq.Value
 			s.LocalQueue = append(s.LocalQueue[:i], s.LocalQueue[i+1:]...)
 			break
 		}
@@ -103,8 +107,8 @@ func (s *ServerSequential) removeFromQueueSequential(message MessageSequential) 
 
 func (s *ServerSequential) removeFromQueueDeletingSequential(message MessageSequential) {
 	for i, msg := range s.LocalQueue {
-		if message.Key == msg.Key && message.Value == msg.Value && message.ScalarTimestamp == msg.ScalarTimestamp {
-			delete(s.DataStore, msg.Key)
+		if message.Key == msg.MessageSeq.Key && message.Value == msg.MessageSeq.Value && message.ScalarTimestamp == msg.MessageSeq.ScalarTimestamp {
+			delete(s.DataStore, msg.MessageSeq.Key)
 			s.LocalQueue = append(s.LocalQueue[:i], s.LocalQueue[i+1:]...)
 			break
 		}
