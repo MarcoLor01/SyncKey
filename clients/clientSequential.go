@@ -27,7 +27,7 @@ func funcServer3(wg *sync.WaitGroup, client *rpc.Client, config clientCommon.Con
 	defer wg.Done()
 	//R(x) su processo 2 = b //R(x) su processo 3 = b
 	fmt.Printf("R(x) su processo 2 = b //R(x) su processo 3 = b\n")
-	clientCommon.HandlePutAction(consistency, "x", "b", config, 1, client)
+	clientCommon.HandlePutAction(consistency, "fds", "aaa", config, 1, client)
 }
 
 func TestFirst() {

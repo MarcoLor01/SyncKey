@@ -3,25 +3,28 @@ package serverOperation
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/google/uuid"
+	"log"
+	"net/rpc"
+	"os"
 	"reflect"
 	"sort"
 	"time"
-
-	"log"
-	"os"
 )
 
 //Funzione per l'aggiunta in coda dei messaggi, i messaggi vengono ordinati in base al timestamp
-//scalare, lo usiamo per l'implementazione della consistenza causale
+//scalare, lo usiamo per l'implementazione della consistenza sequenziale
+//In caso di timestamp scalare uguale, viene considerato il timestamp di inserimento in coda,
+//Quindi i messaggi aggiunti prima saranno considerati prima all'interno della coda
 
 func (s *ServerSequential) addToQueueSequential(message MessageSequential) {
 	s.myQueueMutex.Lock()
 	defer s.myQueueMutex.Unlock()
 	message.InsertQueueTimestamp = time.Now().UnixNano()
-	// Find the index to insert the message
+
 	for i, element := range s.LocalQueue {
 		if message.Key == element.MessageSeq.Key {
-			s.LocalQueue[i].MessageSeq = &message // Add the message to the queue
+			s.LocalQueue[i].MessageSeq = &message
 			s.orderQueue()
 			return
 		}
@@ -30,7 +33,6 @@ func (s *ServerSequential) addToQueueSequential(message MessageSequential) {
 		MessageSeq: &message,
 		Inserted:   false,
 	}
-	// Insert the message at the end
 	s.LocalQueue = append(s.LocalQueue, msgQueue)
 	s.orderQueue()
 }
@@ -125,7 +127,7 @@ func (s *ServerCausal) printDataStore() {
 }
 
 func (s *ServerSequential) printDataStore() {
-	time.Sleep(3 * time.Millisecond)
+
 	fmt.Printf("\n\n---------------DATASTORE---------------\n")
 	for key, value := range s.DataStore {
 		fmt.Printf("Key: %s, Value: %s\n", key, value)
@@ -160,4 +162,63 @@ func (s *ServerSequential) checkSequentialResponses(ch chan bool) int {
 		}
 	}
 	return counter
+}
+
+//Funzione utilizzata per la generazione di un ID univoco per i messaggi
+
+func generateUniqueID() string {
+	currentTimestamp := time.Now().UnixNano() / int64(time.Microsecond)
+	uniqueID := uuid.New().ID()
+	ID := currentTimestamp + int64(uniqueID)
+	stringID := fmt.Sprintf("%d", ID)
+	return stringID
+}
+
+//Funzione utilizzata per la chiusura del client al termine dell'utilizzo
+
+func closeClient(client *rpc.Client) {
+	err := client.Close()
+	if err != nil {
+		log.Println("Error closing the client:", err)
+	}
+}
+
+//Funzione che esegue ulteriori controlli ed elimina il primo termine dalla coda locale del server
+
+func (s *ServerSequential) updateQueue(message MessageSequential, reply *ResponseSequential) {
+	s.myQueueMutex.Lock()
+	if len(s.LocalQueue) != 0 && s.LocalQueue[0].MessageSeq.IdUnique == message.IdUnique {
+		s.LocalQueue = append(s.LocalQueue[:0], s.LocalQueue[1:]...)
+		reply.Done = true
+	} else {
+		reply.Done = false
+	}
+	s.myQueueMutex.Unlock()
+}
+
+//Funzione per aggiungere un nuovo messaggio al datastore
+
+func (s *ServerSequential) addElementDatastore(message MessageSequential) {
+	s.myDatastoreMutex.Lock()
+	fmt.Printf("ESEGUITA DA SERVER %d azione di put, key: %s, value: %s\n", MyId, message.Key, message.Value)
+	s.DataStore[message.Key] = message.Value
+	s.printDataStore()
+	s.myDatastoreMutex.Unlock()
+}
+
+//Funzione per la rimozione di un messaggio dal datastore
+
+func (s *ServerSequential) deleteElementDatastore(message MessageSequential) {
+	s.myDatastoreMutex.Lock()
+	fmt.Printf("ESEGUITA DA SERVER %d azione di delete, key: %s\n", MyId, message.Key)
+	delete(s.DataStore, message.Key)
+	s.printDataStore()
+	s.myDatastoreMutex.Unlock()
+}
+
+func (s *ServerSequential) createAckMessage(Message MessageSequential) AckMessage {
+	return AckMessage{
+		Element:    Message,
+		MyServerId: MyId,
+	}
 }

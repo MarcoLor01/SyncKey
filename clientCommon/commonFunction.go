@@ -11,7 +11,6 @@ import (
 	"time"
 )
 
-const wait string = "Wait..."
 const call string = "Synchronous call to RPC server"
 const datastoreError string = "Error adding the element to datastore, error: "
 
@@ -59,23 +58,18 @@ func addElementToDsSequential(key string, value string, config Config, serverNum
 
 	result := serverOperation.ResponseSequential{Deliverable: false, Done: false}
 
-	log.Printf(wait)
-
 	err := client.Call("ServerSequential.SequentialSendElement", args, &result) //Calling the SequentialSendElement routine
 	if err != nil {
 		log.Fatal(datastoreError, err)
 	}
 
-	var val string
-
 	time.Sleep(500 * time.Millisecond)
 
-	if result.Deliverable {
-		val = "Successful"
+	if result.Done {
+		log.Println("Successful operation for message with key: ", args.Key, "and value: ", args.Key)
 	} else {
-		val = "Failed"
+		log.Println("Failed operation for message with key: ", args.Key, "and value: ", args.Key)
 	}
-	log.Println(val)
 }
 
 func addElementToDsCausal(key string, value string, config Config, serverNumber int, client *rpc.Client) {
@@ -90,8 +84,6 @@ func addElementToDsCausal(key string, value string, config Config, serverNumber 
 	log.Printf(call)
 
 	result := serverOperation.ResponseCausal{Deliverable: false}
-
-	log.Printf(wait)
 
 	err := client.Call("ServerCausal.CausalSendElement", args, &result) //Calling the CausalSendElement routine
 	if err != nil {
@@ -119,7 +111,6 @@ func deleteElementFromDsSequential(key string, config Config, serverNumber int, 
 	result := serverOperation.ResponseSequential{Deliverable: false, Done: false}
 
 	log.Printf(call)
-	log.Printf(wait)
 
 	err := client.Call("ServerSequential.SequentialSendElement", args, &result)
 
@@ -147,7 +138,6 @@ func deleteElementFromDsCausal(key string, config Config, serverNumber int, clie
 	result := serverOperation.ResponseCausal{Deliverable: false}
 
 	log.Printf(call)
-	log.Printf(wait)
 
 	err := client.Call("ServerCausal.CausalSendElement", args, &result)
 
@@ -169,7 +159,6 @@ func deleteElementFromDsCausal(key string, config Config, serverNumber int, clie
 func getElementFromDsCausal(key string, client *rpc.Client) {
 
 	log.Printf(call)
-	log.Printf(wait)
 	var returnValue string
 	err := client.Call("ServerCausal.CausalGetElement", key, &returnValue)
 	fmt.Println("Get element with Key: ", key)
@@ -190,7 +179,6 @@ func getElementFromDsCausal(key string, client *rpc.Client) {
 func getElementFromDsSequential(key string, client *rpc.Client) {
 
 	log.Printf(call)
-	log.Printf(wait)
 	var returnValue string
 	err := client.Call("ServerSequential.SequentialGetElement", key, &returnValue)
 	fmt.Println("Get element with Key: ", key)

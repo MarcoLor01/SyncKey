@@ -17,10 +17,11 @@ type MessageSequential struct {
 	Key                  string
 	Value                string
 	ScalarTimestamp      int
-	ServerId             int   //Necessito di sapere chi ha inviato il messaggio, questo perché se ho un server che invia un messaggio a un altro server, il server che invia il messaggio non deve aggiornare il suo scalarClock
-	NumberAck            int   //Solo se number == NumberOfServers il messaggio diventa consegnabile
-	OperationType        int   //putOperation == 1, deleteOperation == 2
-	InsertQueueTimestamp int64 //Quando è stato aggiunto in coda il messaggio
+	ServerId             int    //Necessito di sapere chi ha inviato il messaggio, questo perché se ho un server che invia un messaggio a un altro server, il server che invia il messaggio non deve aggiornare il suo scalarClock
+	NumberAck            int    //Solo se number == NumberOfServers il messaggio diventa consegnabile
+	OperationType        int    //putOperation == 1, deleteOperation == 2
+	InsertQueueTimestamp int64  //Quando è stato aggiunto in coda il messaggio
+	IdUnique             string //Id univoco che identifica il messaggio, aggiunto perché il confronto con key e value provocava problemi in caso di messaggi con key equivalente
 }
 
 //type ServerDeliverMessage struct {
