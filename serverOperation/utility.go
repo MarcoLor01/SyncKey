@@ -46,13 +46,15 @@ func (s *ServerSequential) orderQueue() {
 	})
 }
 
+//Funzione per aggiungere il messaggio alla coda nel caso della consistenza causale
+
 func (s *ServerCausal) addToQueueCausal(message MessageCausal) {
 	s.LocalQueue = append(s.LocalQueue, &message)
 }
 
-//Initialize the list of the server in the configuration file
+//Inizializziamo la lista dei server, funzione chiamata durante la configurazione del server
 
-func InitializeServerList() {
+func InitializeServerList() error {
 
 	config := os.Getenv("CONFIG")
 
@@ -68,14 +70,17 @@ func InitializeServerList() {
 
 	fileContent, err := os.ReadFile(filePath)
 	if err != nil {
-		log.Fatal("Error reading configuration file: ", err)
+		return fmt.Errorf("error reading configuration file: %w", err)
 	}
 
 	err = json.Unmarshal(fileContent, &addresses)
 	if err != nil {
-		log.Fatal("Error unmarshalling file: ", err)
+		return fmt.Errorf("error unmarshalling file: %w", err)
 	}
+	return nil
 }
+
+//Funzione per l'eliminazione di un messaggio dalla coda nel caso di consistenza causale
 
 func (s *ServerCausal) removeFromQueueCausal(message MessageCausal) {
 	for i, msg := range s.LocalQueue {
@@ -87,6 +92,8 @@ func (s *ServerCausal) removeFromQueueCausal(message MessageCausal) {
 	}
 }
 
+//Funzione per la rimozione di un messaggio dalla coda nel caso di operazione di Delete nella consistenza causale
+
 func (s *ServerCausal) removeFromQueueDeletingCausal(message MessageCausal) {
 	for i, msg := range s.LocalQueue {
 		if message.Key == msg.Key && message.Value == msg.Value && reflect.DeepEqual(message.VectorTimestamp, msg.VectorTimestamp) == true {
@@ -96,6 +103,8 @@ func (s *ServerCausal) removeFromQueueDeletingCausal(message MessageCausal) {
 		}
 	}
 }
+
+//Funzione per la rimozione di un messaggio dalla coda nel caso della consistenza sequenziale
 
 func (s *ServerSequential) removeFromQueueSequential(message MessageSequential) {
 	for i, msg := range s.LocalQueue {
@@ -107,6 +116,8 @@ func (s *ServerSequential) removeFromQueueSequential(message MessageSequential) 
 	}
 }
 
+//Funzione per la rimozione di un messaggio dalla coda per l'operazione di Delete nel caso della consistenza sequenziale
+
 func (s *ServerSequential) removeFromQueueDeletingSequential(message MessageSequential) {
 	for i, msg := range s.LocalQueue {
 		if message.Key == msg.MessageSeq.Key && message.Value == msg.MessageSeq.Value && message.ScalarTimestamp == msg.MessageSeq.ScalarTimestamp {
@@ -116,6 +127,10 @@ func (s *ServerSequential) removeFromQueueDeletingSequential(message MessageSequ
 		}
 	}
 }
+
+//Funzioni per stampare il contenuto del Datastore,
+//La prima per la consistenza causale
+//La seconda per la consistenza sequenziale
 
 func (s *ServerCausal) printDataStore() {
 	time.Sleep(3 * time.Millisecond)
@@ -154,16 +169,6 @@ func (s *ServerCausal) checkResponses(ch chan bool) bool {
 	}
 }
 
-func (s *ServerSequential) checkSequentialResponses(ch chan bool) int {
-	counter := 0
-	for response := range ch {
-		if response {
-			counter++
-		}
-	}
-	return counter
-}
-
 //Funzione utilizzata per la generazione di un ID univoco per i messaggi
 
 func generateUniqueID() string {
@@ -200,7 +205,7 @@ func (s *ServerSequential) updateQueue(message MessageSequential, reply *Respons
 
 func (s *ServerSequential) addElementDatastore(message MessageSequential) {
 	s.myDatastoreMutex.Lock()
-	fmt.Printf("ESEGUITA DA SERVER %d azione di put, key: %s, value: %s\n", MyId, message.Key, message.Value)
+	log.Printf("ESEGUITA DA SERVER %d azione di put, key: %s, value: %s\n", MyId, message.Key, message.Value)
 	s.DataStore[message.Key] = message.Value
 	s.printDataStore()
 	s.myDatastoreMutex.Unlock()
@@ -210,11 +215,13 @@ func (s *ServerSequential) addElementDatastore(message MessageSequential) {
 
 func (s *ServerSequential) deleteElementDatastore(message MessageSequential) {
 	s.myDatastoreMutex.Lock()
-	fmt.Printf("ESEGUITA DA SERVER %d azione di delete, key: %s\n", MyId, message.Key)
+	log.Printf("ESEGUITA DA SERVER %d azione di delete, key: %s\n", MyId, message.Key)
 	delete(s.DataStore, message.Key)
 	s.printDataStore()
 	s.myDatastoreMutex.Unlock()
 }
+
+//Funzione per creazione di un messaggio di ACK
 
 func (s *ServerSequential) createAckMessage(Message MessageSequential) AckMessage {
 	return AckMessage{

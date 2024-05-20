@@ -206,20 +206,13 @@ func (s *ServerSequential) applicationDeliveryCondition(message MessageSequentia
 	ch := make(chan ResponseSequential, 1)
 
 	for {
-
 		s.checkQueue(message, ch)
 		result := <-ch
-
 		if result.Done {
 			break
-		} else {
-
 		}
-
 		time.Sleep(1 * time.Second)
-
 	}
-
 	//La condizione è stata soddisfatta
 
 	reply := s.createResponseSequential()

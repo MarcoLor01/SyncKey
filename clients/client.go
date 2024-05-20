@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-func createCasualClient(config clientCommon.Config) (int, *rpc.Client) {
+func createCasualClient(config clientCommon.Config) (int, *rpc.Client, error) {
 
 	//Prendo un valore random compreso tra 0 e il numero di server - 1,
 	//così da poter contattare un server random tra quelli disponibili
@@ -20,19 +20,19 @@ func createCasualClient(config clientCommon.Config) (int, *rpc.Client) {
 
 	client, err := rpc.Dial("tcp", config.Address[serverNumber].Addr)
 	if err != nil {
-		log.Fatal("Error in dialing: ", err)
+		return -1, nil, fmt.Errorf("error in dialing: %w", err)
 	}
-	return serverNumber, client
+	return serverNumber, client, nil
 }
 
 // Funzione per stabilire l'azione che devo svolgere
-func establishActionToDo() string {
+func establishActionToDo() (string, error) {
 	var actionToDo string
 	for {
 		fmt.Print("Enter action (put/get/delete): ")
 		_, err := fmt.Scan(&actionToDo)
 		if err != nil {
-			log.Fatal("Error in reading the action: ", err)
+			return "", fmt.Errorf("error in reading the action: %w", err)
 		}
 
 		switch actionToDo {
@@ -45,71 +45,77 @@ func establishActionToDo() string {
 		}
 		break
 	}
-	return actionToDo
+	return actionToDo, nil
 }
 
-func insertKey() string {
+func insertKey() (string, error) {
 	var key string
 	for {
 		fmt.Print("Enter key: ")
 		_, err := fmt.Scan(&key)
 		if err != nil {
-			log.Fatal(err)
+			return "", fmt.Errorf("error in scan function %w", err)
 		}
 		if key != "" {
 			break
 		}
-		fmt.Println("Key cannot be an empty string. Please enter a valid key.")
+		log.Println("Key cannot be an empty string. Please enter a valid key.")
 	}
-	return key
+	return key, nil
 }
 
-func insertValue() string {
+func insertValue() (string, error) {
 	var value string
 	for {
 		fmt.Print("Enter value: ")
 		_, err := fmt.Scan(&value)
 		if err != nil {
-			log.Fatal(err)
+			return "", fmt.Errorf("error in scan function %w", err)
 		}
 		if value != "" {
 			break
 		}
 		fmt.Println("Value cannot be an empty string. Please enter a valid value.")
 	}
-	return value
+	return value, nil
 }
 
-func getAction() (string, string, string) {
-	var actionToDo, key, value string
+func getAction() (string, string, string, error) {
+	var value string
 
-	actionToDo = establishActionToDo()
+	actionToDo, err := establishActionToDo()
+	if err != nil {
+		return "", "", "", fmt.Errorf("error estabilishing action")
+	}
 	//Devo prima di tutto andare a prendere la key per la ricerca nel datastore per qualsiasi configurazione
-	key = insertKey()
+	key, err := insertKey()
 	if actionToDo == "put" {
 		//Se l'utente ha scelto di inserire un elemento nel datastore, deve inoltre fornirmi
 		//il valore da associare alla Key, che non può essere vuoto
-		value = insertValue()
+		value, err = insertValue()
+		if err != nil {
+			return "", "", "", fmt.Errorf("error inserting action")
+		}
 	}
-	return actionToDo, key, value
+	return actionToDo, key, value, nil
 }
 
-func getConsistency() (int, string) {
+func getConsistency() (int, string, error) {
 	var consistencyType int
 	for {
 		fmt.Print("Enter the consistency type (0 for Causal, 1 for Sequential): ")
 		_, err := fmt.Scan(&consistencyType)
 		if err != nil {
-			log.Fatal("Error reading input: ", err)
+			return -1, "", fmt.Errorf("error reading input: %w", err)
 		}
 
 		switch consistencyType {
 		case 0:
-			return 0, "Causal"
+			return 0, "Causal", nil
 		case 1:
-			return 1, "Sequential"
+			return 1, "Sequential", nil
 		default:
-			fmt.Println("Invalid input. Please enter 0 for Causal or 1 for Sequential.")
+			log.Println("Invalid input. Please enter 0 for Causal or 1 for Sequential.")
 		}
 	}
 }
@@ -118,18 +124,26 @@ func main() {
 
 	//time.Sleep(10 * time.Second) //Attendo che i server siano pronti
 
-	consistency, consistencyString := getConsistency()
+	consistency, consistencyString, err := getConsistency()
+	if err != nil {
+		log.Fatal(err)
+	}
 	fmt.Println("The client is using server with the consistency: ", consistencyString)
 	configuration := clientCommon.LoadEnvironment()
 
 	config := clientCommon.LoadConfig(configuration)
-	serverNumber, client := createCasualClient(config)
-
+	serverNumber, client, err := createCasualClient(config)
+	if err != nil {
+		log.Fatal(err)
+	}
 	//Voglio garantire trasparenza al client riguardo al tipo di consistenza che voglio implementare,
 	//eseguo quindi una chiamata RPC a un server per sapere la modalità con cui il server è stato avviato
 
 	for {
-		actionToDo, key, value := getAction()
+		actionToDo, key, value, err := getAction()
+		if err != nil {
+			log.Fatal(err)
+		}
 		//In base all'azione che l'utente ha scelto di svolgere, vado a chiamare la funzione corrispondente
 		switch actionToDo {
 		case "not specified":
@@ -151,16 +165,13 @@ func main() {
 
 		var continueRunning string
 		fmt.Print("Do you want to continue? (yes/no): ")
-		_, err := fmt.Scan(&continueRunning)
+		_, err = fmt.Scan(&continueRunning)
 		if err != nil {
 			log.Fatal(err)
 		}
 		continueRunning = strings.ToLower(continueRunning)
 		if continueRunning != "yes" {
-			err = client.Close()
-			if err != nil {
-				return
-			}
+			clientCommon.CloseClient(client)
 			break
 		}
 	}

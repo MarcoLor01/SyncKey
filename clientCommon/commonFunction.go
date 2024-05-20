@@ -231,3 +231,10 @@ func LoadEnvironment() string {
 	//che mi dice se sto usando la configurazione locale (CONFIG = 1) o quella docker (CONFIG = 2)
 	return configuration
 }
+
+func CloseClient(client *rpc.Client) {
+	err := client.Close()
+	if err != nil {
+		log.Println("Error closing the client:", err)
+	}
+}
