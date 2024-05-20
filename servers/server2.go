@@ -14,8 +14,8 @@ func main() {
 
 	path := os.Getenv("ENV_PATH") //Prendo il path del file .env, che cambia in base
 	//a se sto usando la configurazione locale o quella docker
-	err1 := godotenv.Load(path)
-	if err1 != nil {
+	err := godotenv.Load(path)
+	if err != nil {
 		log.Fatal("Error loading .env file")
 	}
 
@@ -32,7 +32,10 @@ func main() {
 	}
 	var server *rpc.Server
 	server = rpc.NewServer()
-	serverOperation.InitializeServerList()
+	err = serverOperation.InitializeServerList()
+	if err != nil {
+		log.Fatal(err)
+	}
 	serverOperation.InitializeAndRegisterServerSequential(server)
 	serverOperation.InitializeAndRegisterServerCausal(server)
 	fmt.Println("Server registered successfully")

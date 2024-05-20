@@ -8,11 +8,10 @@ import (
 	"main/serverOperation"
 	"net/rpc"
 	"os"
-	"time"
 )
 
-const call string = "Synchronous call to RPC server"
-const datastoreError string = "Error adding the element to datastore, error: "
+const call string = "Call to RPC server"
+const datastoreError string = "error adding the element to datastore, error: "
 
 type Config struct {
 	Address []struct {
@@ -21,31 +20,62 @@ type Config struct {
 	} `json:"address"`
 }
 
-func HandlePutAction(consistency int, key string, value string, config Config, serverNumber int, client *rpc.Client) {
+//Funzione per la gestione delle azioni
+
+//Azione di put
+
+func HandlePutAction(consistency int, key string, value string, config Config, serverNumber int, client *rpc.Client) error {
 	if consistency == 0 {
-		addElementToDsCausal(key, value, config, serverNumber, client)
+		err := addElementToDsCausal(key, value, config, serverNumber, client)
+		if err != nil {
+			return fmt.Errorf("error adding element to datastore: %w", err)
+		}
 	} else {
-		addElementToDsSequential(key, value, config, serverNumber, client)
+		err := addElementToDsSequential(key, value, config, serverNumber, client)
+		if err != nil {
+			return fmt.Errorf("error adding element to datastore: %w", err)
+		}
 	}
+	return nil
 }
 
-func HandleDeleteAction(consistency int, key string, config Config, serverNumber int, client *rpc.Client) {
+//Azione di delete
+
+func HandleDeleteAction(consistency int, key string, config Config, serverNumber int, client *rpc.Client) error {
 	if consistency == 0 {
-		deleteElementFromDsCausal(key, config, serverNumber, client)
+		err := deleteElementFromDsCausal(key, config, serverNumber, client)
+		if err != nil {
+			return fmt.Errorf("error deleting element to datastore: %w", err)
+		}
 	} else {
-		deleteElementFromDsSequential(key, config, serverNumber, client)
+		err := deleteElementFromDsSequential(key, config, serverNumber, client)
+		if err != nil {
+			return fmt.Errorf("error deleting element to datastore: %w", err)
+		}
 	}
+	return nil
 }
 
-func HandleGetAction(consistency int, key string, client *rpc.Client) {
+//Azione di get
+
+func HandleGetAction(consistency int, key string, client *rpc.Client) error {
 	if consistency == 0 {
-		getElementFromDsCausal(key, client)
+		err := getElementFromDsCausal(key, client)
+		if err != nil {
+			return fmt.Errorf("error getting element to datastore: %w", err)
+		}
 	} else {
-		getElementFromDsSequential(key, client)
+		err := getElementFromDsSequential(key, client)
+		if err != nil {
+			return fmt.Errorf("error getting element to datastore: %w", err)
+		}
 	}
+	return nil
 }
 
-func addElementToDsSequential(key string, value string, config Config, serverNumber int, client *rpc.Client) {
+//Azione di put con consistenza sequenziale
+
+func addElementToDsSequential(key string, value string, config Config, serverNumber int, client *rpc.Client) error {
 
 	var n1, n2 string
 	n1 = key
@@ -60,19 +90,20 @@ func addElementToDsSequential(key string, value string, config Config, serverNum
 
 	err := client.Call("ServerSequential.SequentialSendElement", args, &result) //Calling the SequentialSendElement routine
 	if err != nil {
-		log.Fatal(datastoreError, err)
+		return fmt.Errorf(datastoreError+": %w", err)
 	}
-
-	time.Sleep(500 * time.Millisecond)
 
 	if result.Done {
 		log.Println("Successful operation for message with key: ", args.Key, "and value: ", args.Key)
 	} else {
 		log.Println("Failed operation for message with key: ", args.Key, "and value: ", args.Key)
 	}
+	return nil
 }
 
-func addElementToDsCausal(key string, value string, config Config, serverNumber int, client *rpc.Client) {
+//Funzione per aggiungere un elemento con consistenza causale
+
+func addElementToDsCausal(key string, value string, config Config, serverNumber int, client *rpc.Client) error {
 
 	var n1, n2 string
 	n1 = key
@@ -87,22 +118,21 @@ func addElementToDsCausal(key string, value string, config Config, serverNumber 
 
 	err := client.Call("ServerCausal.CausalSendElement", args, &result) //Calling the CausalSendElement routine
 	if err != nil {
-		log.Fatal(datastoreError, err)
+		return fmt.Errorf(datastoreError+": %w", err)
 	}
-
-	var val string
-
-	time.Sleep(500 * time.Millisecond)
 
 	if result.Deliverable {
-		val = "Successful"
+		log.Println("Successful operation for message with key: ", args.Key, "and value: ", args.Key)
 	} else {
-		val = "Failed"
+		log.Println("Failed operation for message with key: ", args.Key, "and value: ", args.Key)
 	}
-	log.Println(val)
+
+	return nil
 }
 
-func deleteElementFromDsSequential(key string, config Config, serverNumber int, client *rpc.Client) {
+//Funzione per aggiungere un elemento con consistenza sequenziale
+
+func deleteElementFromDsSequential(key string, config Config, serverNumber int, client *rpc.Client) error {
 	n1 := key
 
 	log.Printf("Get element with Key: %s contacting %s", n1, config.Address[serverNumber].Addr)
@@ -115,21 +145,20 @@ func deleteElementFromDsSequential(key string, config Config, serverNumber int, 
 	err := client.Call("ServerSequential.SequentialSendElement", args, &result)
 
 	if err != nil {
-		log.Fatal(datastoreError, err)
+		return fmt.Errorf(datastoreError+": %w", err)
 	}
-	var val1 string
-
-	time.Sleep(1 * time.Second)
 
 	if result.Deliverable {
-		val1 = "Successful"
+		log.Println("Successful operation for message with key: ", args.Key)
 	} else {
-		val1 = "Failed"
+		log.Println("Failed operation for message with key: ", args.Key)
 	}
-	log.Println(val1)
+	return nil
 }
 
-func deleteElementFromDsCausal(key string, config Config, serverNumber int, client *rpc.Client) {
+//Funzione per eliminare un elemento con consistenza causale
+
+func deleteElementFromDsCausal(key string, config Config, serverNumber int, client *rpc.Client) error {
 	n1 := key
 
 	log.Printf("Get element with Key: %s contacting %s\n", n1, config.Address[serverNumber].Addr)
@@ -137,46 +166,46 @@ func deleteElementFromDsCausal(key string, config Config, serverNumber int, clie
 	args := serverOperation.MessageCausal{Key: n1, VectorTimestamp: make([]int, len(config.Address)), OperationType: 2}
 	result := serverOperation.ResponseCausal{Deliverable: false}
 
-	log.Printf(call)
-
 	err := client.Call("ServerCausal.CausalSendElement", args, &result)
 
 	if err != nil {
-		log.Fatal(datastoreError, err)
+		return fmt.Errorf(datastoreError+": %w", err)
 	}
-	var val1 string
-
-	time.Sleep(1 * time.Second)
 
 	if result.Deliverable {
-		val1 = "Successful"
+		log.Println("Successful operation for message with key: ", args.Key)
 	} else {
-		val1 = "Failed"
+		log.Println("Failed operation for message with key: ", args.Key)
 	}
-	log.Println(val1)
+	return nil
 }
 
-func getElementFromDsCausal(key string, client *rpc.Client) {
+//Funzione per recuperare un elemento in versione causale
+
+func getElementFromDsCausal(key string, client *rpc.Client) error {
 
 	log.Printf(call)
 	var returnValue string
 	err := client.Call("ServerCausal.CausalGetElement", key, &returnValue)
+
 	fmt.Println("Get element with Key: ", key)
 	fmt.Println("Value: ", returnValue)
 
 	if err != nil {
-		log.Fatal(datastoreError, err)
+		return fmt.Errorf(datastoreError+": %w", err)
 	}
-	time.Sleep(1 * time.Second)
 
 	if returnValue != "" {
 		log.Printf("Element with Key %s, have value: %s", key, returnValue)
 	} else {
 		log.Printf("No element with Key: %s\n", key)
 	}
+	return nil
 }
 
-func getElementFromDsSequential(key string, client *rpc.Client) {
+//Funzione per recuperare un elemento in versione sequenziale
+
+func getElementFromDsSequential(key string, client *rpc.Client) error {
 
 	log.Printf(call)
 	var returnValue string
@@ -185,42 +214,48 @@ func getElementFromDsSequential(key string, client *rpc.Client) {
 	fmt.Println("Value: ", returnValue)
 
 	if err != nil {
-		log.Fatal(datastoreError, err)
+		return fmt.Errorf(datastoreError+": %w", err)
 	}
-	time.Sleep(1 * time.Second)
 
 	if returnValue != "" {
 		log.Printf("Element with Key %s, have value: %s", key, returnValue)
 	} else {
 		log.Printf("No element with Key: %s\n", key)
 	}
+	return nil
 }
 
-func CreateClient(config Config, serverNumber int) *rpc.Client {
+//Funzione per effettuare Dialing verso un server
+
+func CreateClient(config Config, serverNumber int) (*rpc.Client, error) {
 
 	client, err := rpc.Dial("tcp", config.Address[serverNumber].Addr)
 	if err != nil {
-		log.Fatal("Error in dialing: ", err)
+		return nil, fmt.Errorf("error in dialing: %w", err)
 	}
-	return client
+	return client, nil
 }
 
-func LoadConfig(configuration string) Config {
+func LoadConfig(configuration string) (Config, error) {
 
 	filePath := map[string]string{"1": "../serversAddrLocal.json", "2": "../serversAddrDocker.json"}[configuration]
 	if filePath == "" {
 		log.Fatalf("Error loading the configuration file: CONFIG is set to '%s'", configuration)
 	}
+
 	fileContent, err := os.ReadFile(filePath)
 	if err != nil {
-		log.Fatal("Error reading file:", err)
+		log.Fatal("Error reading file: %w", err)
 	}
+
 	var config Config
 	if err = json.Unmarshal(fileContent, &config); err != nil {
 		log.Fatal("Error in JSON decode:", err)
 	}
-	return config
+	return config, nil
 }
+
+//Funzione per caricare le variabili d'ambiente dal file .env
 
 func LoadEnvironment() string {
 	err := godotenv.Load("../.env")
@@ -231,6 +266,8 @@ func LoadEnvironment() string {
 	//che mi dice se sto usando la configurazione locale (CONFIG = 1) o quella docker (CONFIG = 2)
 	return configuration
 }
+
+//Funzione per andare a chiudere la chiamata a un qualsiasi server, passato come input
 
 func CloseClient(client *rpc.Client) {
 	err := client.Close()

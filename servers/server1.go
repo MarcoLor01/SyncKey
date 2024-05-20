@@ -32,7 +32,10 @@ func main() {
 	}
 	var server *rpc.Server
 	server = rpc.NewServer()
-	serverOperation.InitializeServerList()
+	err = serverOperation.InitializeServerList()
+	if err != nil {
+		log.Fatal(err)
+	}
 	//Inizializzo il server che esegue con consistenza sequenziale
 	serverOperation.InitializeAndRegisterServerSequential(server)
 	//Inizializzo il server che esegue con consistenza causale

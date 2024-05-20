@@ -131,7 +131,10 @@ func main() {
 	fmt.Println("The client is using server with the consistency: ", consistencyString)
 	configuration := clientCommon.LoadEnvironment()
 
-	config := clientCommon.LoadConfig(configuration)
+	config, err := clientCommon.LoadConfig(configuration)
+	if err != nil {
+		log.Fatal(err)
+	}
 	serverNumber, client, err := createCasualClient(config)
 	if err != nil {
 		log.Fatal(err)
@@ -151,11 +154,20 @@ func main() {
 			os.Exit(-1)
 
 		case "put":
-			clientCommon.HandlePutAction(consistency, key, value, config, serverNumber, client)
+			err := clientCommon.HandlePutAction(consistency, key, value, config, serverNumber, client)
+			if err != nil {
+				log.Fatal(err)
+			}
 		case "delete":
-			clientCommon.HandleDeleteAction(consistency, key, config, serverNumber, client)
+			err := clientCommon.HandleDeleteAction(consistency, key, config, serverNumber, client)
+			if err != nil {
+				log.Fatal(err)
+			}
 		case "get":
-			clientCommon.HandleGetAction(consistency, key, client)
+			err := clientCommon.HandleGetAction(consistency, key, client)
+			if err != nil {
+				log.Fatal(err)
+			}
 		default:
 			log.Printf("Uncorrect flag")
 			return
