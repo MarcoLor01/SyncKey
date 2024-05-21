@@ -157,6 +157,10 @@ func (s *ServerSequential) sendAck(addr string, messageAck AckMessage, ch chan R
 
 	reply := s.createResponseSequential()
 
+	//Delay causale inserito
+	delayInserted := calculateDelay()
+	time.Sleep(time.Duration(delayInserted) * time.Millisecond)
+
 	if err1 := client.Call("ServerSequential.SequentialSendAck", messageAck, reply); err1 != nil {
 		return fmt.Errorf("error in saving Message in queue")
 	}

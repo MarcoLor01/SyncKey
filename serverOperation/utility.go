@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"log"
+	"math/rand"
 	"net/rpc"
 	"os"
 	"sort"
@@ -244,4 +245,16 @@ func (s *ServerSequential) createAckMessage(Message MessageSequential) AckMessag
 		Element:    Message,
 		MyServerId: MyId,
 	}
+}
+
+//Funzione per calcolare un delay casuale, compreso tra 500 ms e 3 secondi
+
+func calculateDelay() int {
+
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	// Genera un numero casuale compreso tra 0 e 2500 millisecondi.
+	randomDelay := r.Intn(2500)
+	// Aggiungi il ritardo minimo di 500 millisecondi.
+	delay := randomDelay + 500
+	return delay
 }

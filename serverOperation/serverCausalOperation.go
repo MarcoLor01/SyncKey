@@ -61,6 +61,9 @@ func (s *ServerCausal) causalSendToSingleServer(addr string, message MessageCaus
 	defer closeClient(client)
 
 	reply := s.createResponseCausal()
+	//Delay causale inserito
+	delayInserted := calculateDelay()
+	time.Sleep(time.Duration(delayInserted) * time.Millisecond)
 
 	if err1 := client.Call("ServerCausal.SaveMessageQueue", message, reply); err1 != nil {
 		return fmt.Errorf("error in saving message in the queue: %w", err1)
