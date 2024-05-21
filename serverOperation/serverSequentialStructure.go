@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/rpc"
 	"sync"
+	"time"
 )
 
 //Strutture di cui necessito per la consistenza sequenziale
@@ -74,4 +75,87 @@ func InitializeAndRegisterServerSequential(server *rpc.Server) {
 
 func (s *ServerSequential) createResponseSequential() *ResponseSequential {
 	return &ResponseSequential{Done: false}
+}
+
+//Funzione per creazione di un messaggio di ACK
+
+func (s *ServerSequential) createAckMessage(Message MessageSequential) AckMessage {
+	return AckMessage{
+		Element:    Message,
+		MyServerId: MyId,
+	}
+}
+
+//Funzione per la rimozione di un messaggio dal datastore
+
+func (s *ServerSequential) sequentialDeleteElementDatastore(message MessageSequential) {
+	s.myDatastoreMutex.Lock()
+	log.Printf("ESEGUITA DA SERVER %d azione di delete, key: %s\n", MyId, message.Key)
+	delete(s.DataStore, message.Key)
+	s.printDataStore()
+	s.myDatastoreMutex.Unlock()
+}
+
+//Funzione per aggiungere un nuovo messaggio al datastore
+
+func (s *ServerSequential) sequentialAddElementDatastore(message MessageSequential) {
+	s.myDatastoreMutex.Lock()
+	log.Printf("ESEGUITA DA SERVER %d azione di put, key: %s, value: %s\n", MyId, message.Key, message.Value)
+	s.DataStore[message.Key] = message.Value
+	s.printDataStore()
+	s.myDatastoreMutex.Unlock()
+}
+
+//Funzione che esegue ulteriori controlli ed elimina il primo termine dalla coda locale del server
+
+func (s *ServerSequential) updateQueue(message MessageSequential, reply *ResponseSequential) {
+	s.myQueueMutex.Lock()
+	if len(s.LocalQueue) != 0 && s.LocalQueue[0].IdUnique == message.IdUnique {
+		s.LocalQueue = append(s.LocalQueue[:0], s.LocalQueue[1:]...)
+		reply.Done = true
+	} else {
+		reply.Done = false
+	}
+	s.myQueueMutex.Unlock()
+}
+
+//Funzione per la rimozione di un messaggio dalla coda per l'operazione di Delete nel caso della consistenza sequenziale
+
+func (s *ServerSequential) removeFromQueueDeletingSequential(message MessageSequential) {
+	for i, msg := range s.LocalQueue {
+		if message.Key == msg.Key && message.Value == msg.Value && message.ScalarTimestamp == msg.ScalarTimestamp {
+			delete(s.DataStore, msg.Key)
+			s.LocalQueue = append(s.LocalQueue[:i], s.LocalQueue[i+1:]...)
+			break
+		}
+	}
+}
+
+//Funzione per la rimozione di un messaggio dalla coda nel caso della consistenza sequenziale
+
+func (s *ServerSequential) removeFromQueueSequential(message MessageSequential) {
+	for i, msg := range s.LocalQueue {
+		if message.Key == msg.Key && message.Value == msg.Value && message.ScalarTimestamp == msg.ScalarTimestamp {
+			s.DataStore[msg.Key] = msg.Value
+			s.LocalQueue = append(s.LocalQueue[:i], s.LocalQueue[i+1:]...)
+			break
+		}
+	}
+}
+
+func (s *ServerSequential) addToQueueSequential(message MessageSequential) {
+	s.myQueueMutex.Lock()
+	defer s.myQueueMutex.Unlock()
+	message.InsertQueueTimestamp = time.Now().UnixNano()
+
+	for i, element := range s.LocalQueue {
+		if message.Key == element.Key {
+			s.LocalQueue[i] = &message
+			s.orderQueue()
+			return
+		}
+	}
+
+	s.LocalQueue = append(s.LocalQueue, &message)
+	s.orderQueue()
 }

@@ -262,10 +262,10 @@ func (s *ServerSequential) sendToApplication(message MessageSequential, reply *R
 func (s *ServerSequential) updateDataStore(message MessageSequential, reply *ResponseSequential) {
 	reply.Done = false
 	if message.OperationType == 1 {
-		s.addElementDatastore(message)
+		s.sequentialAddElementDatastore(message)
 		reply.Done = true
 	} else if message.OperationType == 2 {
-		s.deleteElementDatastore(message)
+		s.sequentialDeleteElementDatastore(message)
 		reply.Done = true
 	}
 }
