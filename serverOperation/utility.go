@@ -7,10 +7,21 @@ import (
 	"log"
 	"net/rpc"
 	"os"
-	"reflect"
 	"sort"
 	"time"
 )
+
+var MyId int //ID del server
+var addresses ServerInformation
+
+type ServerInformation struct {
+	Addresses []ServerAddress `json:"address"`
+}
+
+type ServerAddress struct {
+	Addr string `json:"addr"`
+	Id   int    `json:"id"`
+} //Struttura che contiene l'indirizzo e l'id di un server
 
 //Funzione per l'aggiunta in coda dei messaggi, i messaggi vengono ordinati in base al timestamp
 //scalare, lo usiamo per l'implementazione della consistenza sequenziale
@@ -23,34 +34,27 @@ func (s *ServerSequential) addToQueueSequential(message MessageSequential) {
 	message.InsertQueueTimestamp = time.Now().UnixNano()
 
 	for i, element := range s.LocalQueue {
-		if message.Key == element.MessageSeq.Key {
-			s.LocalQueue[i].MessageSeq = &message
+		if message.Key == element.Key {
+			s.LocalQueue[i] = &message
 			s.orderQueue()
 			return
 		}
 	}
-	msgQueue := &MessageSeqQueue{
-		MessageSeq: &message,
-		Inserted:   false,
-	}
-	s.LocalQueue = append(s.LocalQueue, msgQueue)
+
+	s.LocalQueue = append(s.LocalQueue, &message)
 	s.orderQueue()
 }
 
 func (s *ServerSequential) orderQueue() {
 	sort.Slice(s.LocalQueue, func(i, j int) bool {
-		if s.LocalQueue[i].MessageSeq.ScalarTimestamp != s.LocalQueue[j].MessageSeq.ScalarTimestamp {
-			return s.LocalQueue[i].MessageSeq.ScalarTimestamp < s.LocalQueue[j].MessageSeq.ScalarTimestamp
+		if s.LocalQueue[i].ScalarTimestamp != s.LocalQueue[j].ScalarTimestamp {
+			return s.LocalQueue[i].ScalarTimestamp < s.LocalQueue[j].ScalarTimestamp
 		}
-		return s.LocalQueue[i].MessageSeq.InsertQueueTimestamp < s.LocalQueue[j].MessageSeq.InsertQueueTimestamp
+		return s.LocalQueue[i].InsertQueueTimestamp < s.LocalQueue[j].InsertQueueTimestamp
 	})
 }
 
 //Funzione per aggiungere il messaggio alla coda nel caso della consistenza causale
-
-func (s *ServerCausal) addToQueueCausal(message MessageCausal) {
-	s.LocalQueue = append(s.LocalQueue, &message)
-}
 
 //Inizializziamo la lista dei server, funzione chiamata durante la configurazione del server
 
@@ -82,34 +86,46 @@ func InitializeServerList() error {
 
 //Funzione per l'eliminazione di un messaggio dalla coda nel caso di consistenza causale
 
-func (s *ServerCausal) removeFromQueueCausal(message MessageCausal) {
+func (s *ServerCausal) removeFromQueueCausal(message MessageCausal) error {
+	var isHere bool
 	for i, msg := range s.LocalQueue {
-		if message.Key == msg.Key && message.Value == msg.Value && reflect.DeepEqual(message.VectorTimestamp, msg.VectorTimestamp) == true {
+		if message.IdUnique == msg.IdUnique {
 			s.DataStore[msg.Key] = msg.Value
 			s.LocalQueue = append(s.LocalQueue[:i], s.LocalQueue[i+1:]...)
+			isHere = true
 			break
 		}
 	}
+	if isHere != true {
+		return fmt.Errorf("message not in queue")
+	}
+	return nil
 }
 
 //Funzione per la rimozione di un messaggio dalla coda nel caso di operazione di Delete nella consistenza causale
 
-func (s *ServerCausal) removeFromQueueDeletingCausal(message MessageCausal) {
+func (s *ServerCausal) removeFromQueueDeletingCausal(message MessageCausal) error {
+	var isHere bool
 	for i, msg := range s.LocalQueue {
-		if message.Key == msg.Key && message.Value == msg.Value && reflect.DeepEqual(message.VectorTimestamp, msg.VectorTimestamp) == true {
+		if message.IdUnique == msg.IdUnique {
 			delete(s.DataStore, msg.Key)
 			s.LocalQueue = append(s.LocalQueue[:i], s.LocalQueue[i+1:]...)
+			isHere = true
 			break
 		}
 	}
+	if isHere != true {
+		return fmt.Errorf("message not in queue")
+	}
+	return nil
 }
 
 //Funzione per la rimozione di un messaggio dalla coda nel caso della consistenza sequenziale
 
 func (s *ServerSequential) removeFromQueueSequential(message MessageSequential) {
 	for i, msg := range s.LocalQueue {
-		if message.Key == msg.MessageSeq.Key && message.Value == msg.MessageSeq.Value && message.ScalarTimestamp == msg.MessageSeq.ScalarTimestamp {
-			s.DataStore[msg.MessageSeq.Key] = msg.MessageSeq.Value
+		if message.Key == msg.Key && message.Value == msg.Value && message.ScalarTimestamp == msg.ScalarTimestamp {
+			s.DataStore[msg.Key] = msg.Value
 			s.LocalQueue = append(s.LocalQueue[:i], s.LocalQueue[i+1:]...)
 			break
 		}
@@ -120,8 +136,8 @@ func (s *ServerSequential) removeFromQueueSequential(message MessageSequential) 
 
 func (s *ServerSequential) removeFromQueueDeletingSequential(message MessageSequential) {
 	for i, msg := range s.LocalQueue {
-		if message.Key == msg.MessageSeq.Key && message.Value == msg.MessageSeq.Value && message.ScalarTimestamp == msg.MessageSeq.ScalarTimestamp {
-			delete(s.DataStore, msg.MessageSeq.Key)
+		if message.Key == msg.Key && message.Value == msg.Value && message.ScalarTimestamp == msg.ScalarTimestamp {
+			delete(s.DataStore, msg.Key)
 			s.LocalQueue = append(s.LocalQueue[:i], s.LocalQueue[i+1:]...)
 			break
 		}
@@ -192,7 +208,7 @@ func closeClient(client *rpc.Client) {
 
 func (s *ServerSequential) updateQueue(message MessageSequential, reply *ResponseSequential) {
 	s.myQueueMutex.Lock()
-	if len(s.LocalQueue) != 0 && s.LocalQueue[0].MessageSeq.IdUnique == message.IdUnique {
+	if len(s.LocalQueue) != 0 && s.LocalQueue[0].IdUnique == message.IdUnique {
 		s.LocalQueue = append(s.LocalQueue[:0], s.LocalQueue[1:]...)
 		reply.Done = true
 	} else {

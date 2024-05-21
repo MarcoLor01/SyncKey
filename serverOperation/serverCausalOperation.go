@@ -2,182 +2,170 @@ package serverOperation
 
 import (
 	"fmt"
-	"log"
+	"golang.org/x/sync/errgroup"
 	"net/rpc"
-	"sync"
+	"time"
 )
 
 func (s *ServerCausal) CausalSendElement(message MessageCausal, reply *ResponseCausal) error {
-	s.myMutex.Lock()
-	fmt.Println("Inizio operazione ")
-	defer s.myMutex.Unlock()
+	//Incremento il mio timestamp essendo il server mittente, e preparo il messaggio all'invio
 	s.incrementMyTimestamp()
-	message.prepareMessage(s.MyClock, MyId) //Setto il timestamp e il mio id come sender
-
+	s.prepareMessage(&message)
+	//Messaggio pronto all'invio, inoltro con un messaggio Multicast a tutti gli altri server
 	response := s.createResponseCausal()
-	s.sendToOtherServersCausal(message, response)
-	reply.Deliverable = response.Deliverable
+
+	err := s.causalSendToOtherServers(message, response)
+	if err != nil {
+		return fmt.Errorf("SequentialSendElement: error sending to other servers: %v", err)
+	}
+
+	reply.Done = response.Done
 	return nil
 }
 
-func (s *ServerCausal) incrementMyTimestamp() {
-	s.MyClock[MyId-1] += 1
-	fmt.Println("Incrementing my timestamp...")
-	fmt.Println("My actual timestamp: ", s.MyClock)
-}
+func (s *ServerCausal) causalSendToOtherServers(message MessageCausal, reply *ResponseCausal) error {
+	ch := make(chan ResponseCausal, len(addresses.Addresses))
 
-func (message *MessageCausal) prepareMessage(clock []int, id int) {
-	message.VectorTimestamp = clock
-	message.ServerId = id
-}
+	//usiamo un errgroup.Group per la gestione degli errori all'interno delle goroutine
 
-func (s *ServerCausal) createResponseCausal() *ResponseCausal {
-	return &ResponseCausal{Deliverable: false}
-}
-
-func (s *ServerCausal) sendToOtherServersCausal(message MessageCausal, response *ResponseCausal) {
-
-	ch := make(chan bool, len(addresses.Addresses))
-	var wg sync.WaitGroup
-
+	var g errgroup.Group
 	for _, address := range addresses.Addresses {
-		wg.Add(1)
-		go s.sendToSingleServer(address, message, ch, &wg)
+		addr := address.Addr // Capture the loop variable
+		g.Go(func() error {
+			return s.causalSendToSingleServer(addr, message, ch)
+		})
 	}
 
-	wg.Wait()
-	close(ch)
+	if err := g.Wait(); err != nil {
+		return fmt.Errorf("error sending to other servers: %v", err)
+	}
 
-	response.Deliverable = s.checkResponses(ch) //Check delle risposte
+	for i := 0; i < len(addresses.Addresses); i++ {
+		response := <-ch
+		if !response.Done {
+			return fmt.Errorf("error in the save of the message")
+		}
+	}
+
+	reply.Done = true
+	return nil
 }
 
-func (s *ServerCausal) sendToSingleServer(address ServerAddress, message MessageCausal, ch chan bool, wg *sync.WaitGroup) {
-	defer wg.Done()
+func (s *ServerCausal) causalSendToSingleServer(addr string, message MessageCausal, ch chan ResponseCausal) error {
 
-	client, err := rpc.Dial("tcp", address.Addr)
+	client, err := rpc.Dial("tcp", addr)
 	if err != nil {
-		log.Fatal("Connection RPC error:", err)
-		return
+		return fmt.Errorf("error %w dialing server: %s", err, addr)
 	}
-	defer func(client *rpc.Client) {
-		err1 := client.Close()
-		if err1 != nil {
-			log.Fatal("Error in closing connection")
-		}
 
-	}(client)
+	defer closeClient(client)
 
 	reply := s.createResponseCausal()
 
-	if err1 := client.Call("ServerCausal.SaveElementCausal", message, reply); err1 != nil {
-		log.Fatal("RPC call error:", err)
-		return
+	if err1 := client.Call("ServerCausal.SaveMessageQueue", message, reply); err1 != nil {
+		return fmt.Errorf("error in saving message in the queue: %w", err1)
 	}
 
-	select {
-	case ch <- reply.Deliverable:
-	default:
-		log.Fatal("Channel was closed before it could be sent")
-	}
-}
-
-func (s *ServerCausal) SaveElementCausal(message MessageCausal, reply *ResponseCausal) error {
-	s.lockIfNeeded(message.ServerId) //Lock del mutex se il serverId è diverso da MyId
-
-	fmt.Println("The timestamp of the message is: ", message.VectorTimestamp)
-
-	s.processMessages(message, reply)
+	ch <- *reply
 
 	return nil
 }
 
-func (s *ServerCausal) lockIfNeeded(serverId int) {
-	if serverId != MyId {
-		s.myMutex.Lock()
-		defer s.myMutex.Unlock()
+func (s *ServerCausal) SaveMessageQueue(message MessageCausal, reply *ResponseSequential) error {
+
+	//Aggiungo il messaggio in coda
+	s.addToQueueCausal(&message)
+
+	//Controllo se posso consegnare, e rimango bloccato finché non si verificano le giuste condizioni
+	response := s.createResponseCausal()
+	s.checkIfDeliverable(&message, response)
+	if response.Done == false {
+		return fmt.Errorf("error checking condition")
 	}
+	responseToSend := s.createResponseCausal()
+	//Ora posso andare a inserire in coda il messaggio e conseguentemente aggiornare il mio timestamp
+	err := s.sendMessageToApplication(message, responseToSend)
+	if err != nil {
+		return err
+	}
+	reply.Done = responseToSend.Done
+	return nil
 }
 
-func (s *ServerCausal) processMessages(message MessageCausal, reply *ResponseCausal) {
-	var wg sync.WaitGroup
-	s.addToQueueCausal(message)
-	wg.Add(len(s.LocalQueue))
-
-	for i := len(s.LocalQueue) - 1; i >= 0; i-- {
-		message2 := s.LocalQueue[i]
-		go s.checkAndProcessMessage(*message2, reply, &wg)
-	}
-	wg.Wait()
+func (s *ServerCausal) addToQueueCausal(message *MessageCausal) {
+	s.myQueueMutex.Lock()
+	s.LocalQueue = append(s.LocalQueue, message)
+	s.myQueueMutex.Unlock()
 }
 
-func (s *ServerCausal) checkAndProcessMessage(message MessageCausal, reply *ResponseCausal, wg *sync.WaitGroup) {
-	defer wg.Done()
+func (s *ServerCausal) checkIfDeliverable(message *MessageCausal, reply *ResponseCausal) {
+	mod := false
 
-	if s.isMessageDeliverable(message) {
-		s.processDeliverableMessage(message, reply)
-	} else {
-		fmt.Printf("The message is not deliverable: %d\n , My clock: %d\n", message.VectorTimestamp, s.MyClock)
-	}
-}
-
-func (s *ServerCausal) isMessageDeliverable(message MessageCausal) bool {
-	var mod bool
-
-	//Se il server che ha inviato il messaggio è uguale al server che lo riceve
-	//Controllo se il timestamp del messaggio è uguale al timestamp del server
-	//In caso contrario controllo se il timestamp del messaggio è uguale al timestamp del server + 1
-	//Perché se il messaggio è stato inviato dal server stesso, il timestamp sarà uguale al timestamp del server
-
-	if MyId == message.ServerId {
-		mod = message.VectorTimestamp[message.ServerId-1] == s.MyClock[message.ServerId-1]
-	} else {
-		mod = message.VectorTimestamp[message.ServerId-1] == s.MyClock[message.ServerId-1]+1
-	}
-
-	if mod {
-		for index, ts := range message.VectorTimestamp {
-			if index == message.ServerId-1 {
-				continue
-			}
-			if ts > s.MyClock[index] { //If the timestamp is greater than the server's timestamp
-				return false
-			}
+	for {
+		//Controllo la prima condizione, ovvero che: t(m)[i] = V_j[i] + 1
+		if MyId == message.ServerId {
+			mod = message.VectorTimestamp[message.ServerId-1] == s.MyClock[message.ServerId-1]
+		} else {
+			mod = message.VectorTimestamp[message.ServerId-1] == s.MyClock[message.ServerId-1]+1
 		}
-		return true
+		//Se la prima condizione è verificata, controllo la seconda, ovvero che t(m)[k] <= V_j[k] Per ogni k != i
+		response := s.createResponseCausal()
+		if mod {
+			for index, ts := range message.VectorTimestamp {
+				if index == message.ServerId-1 {
+					continue
+				}
+				if ts > s.MyClock[index] {
+					response.Done = false
+				}
+			}
+			response.Done = true
+		}
+		if response.Done {
+			reply.Done = true
+			return
+		} else {
+			time.Sleep(1 * time.Second) //Riprova dopo 1 secondo
+		}
 	}
-	return false
 }
 
-func (s *ServerCausal) processDeliverableMessage(message MessageCausal, reply *ResponseCausal) {
-	s.updateTimestamp(message)
-	reply.Deliverable = true
-	fmt.Println("The message is deliverable")
+func (s *ServerCausal) sendMessageToApplication(message MessageCausal, reply *ResponseCausal) error {
+	//Incremento il mio timestamp
+	s.incrementClockReceive(&message)
+
 	if message.OperationType == 1 {
-		s.removeFromQueueCausal(message)
+		err := s.removeFromQueueCausal(message)
+		if err != nil {
+			return err
+		}
 		s.printDataStore()
-	}
-	if message.OperationType == 2 {
-		s.removeFromQueueDeletingCausal(message)
+	} else if message.OperationType == 2 {
+		err := s.removeFromQueueDeletingCausal(message)
+		if err != nil {
+			return err
+		}
 		s.printDataStore()
+	} else {
+		return fmt.Errorf("error checking message operation type")
 	}
-	fmt.Println("My actual timestamp:", s.MyClock)
+	reply.Done = true
+	return nil
 }
 
-func (s *ServerCausal) updateTimestamp(message MessageCausal) {
+func (s *ServerCausal) incrementClockReceive(message *MessageCausal) {
+	//Aggiorno il clock come max(t[k],V_j[k]
 	for ind, ts := range message.VectorTimestamp {
 		if ts > s.MyClock[ind] {
 			s.MyClock[ind] = ts
 		}
 	}
+	//Se non sono stato io a inviare il messaggio, incremento di uno la mia variabile
+	if MyId != message.ServerId {
+		message.VectorTimestamp[MyId-1]++
+	}
 }
 
-func (s *ServerCausal) GetElementCausal(key string, reply *string) error {
-	s.myMutex.Lock()
-	defer s.myMutex.Unlock()
-	if value, ok := s.DataStore[key]; ok {
-		*reply = value
-		fmt.Println("Element found")
-		return nil
-	}
-	return nil
+func (s *ServerCausal) createResponseCausal() *ResponseCausal {
+	return &ResponseCausal{Done: false}
 }

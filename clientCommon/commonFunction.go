@@ -86,7 +86,7 @@ func addElementToDsSequential(key string, value string, config Config, serverNum
 	args := serverOperation.MessageSequential{Key: n1, Value: n2, OperationType: 1}
 	log.Printf(call)
 
-	result := serverOperation.ResponseSequential{Deliverable: false, Done: false}
+	result := serverOperation.ResponseSequential{Done: false}
 
 	err := client.Call("ServerSequential.SequentialSendElement", args, &result) //Calling the SequentialSendElement routine
 	if err != nil {
@@ -114,14 +114,14 @@ func addElementToDsCausal(key string, value string, config Config, serverNumber 
 	args := serverOperation.MessageCausal{Key: n1, Value: n2, VectorTimestamp: make([]int, len(config.Address)), OperationType: 1}
 	log.Printf(call)
 
-	result := serverOperation.ResponseCausal{Deliverable: false}
+	result := serverOperation.ResponseCausal{Done: false}
 
 	err := client.Call("ServerCausal.CausalSendElement", args, &result) //Calling the CausalSendElement routine
 	if err != nil {
 		return fmt.Errorf(datastoreError+": %w", err)
 	}
 
-	if result.Deliverable {
+	if result.Done {
 		log.Println("Successful operation for message with key: ", args.Key, "and value: ", args.Key)
 	} else {
 		log.Println("Failed operation for message with key: ", args.Key, "and value: ", args.Key)
@@ -138,7 +138,7 @@ func deleteElementFromDsSequential(key string, config Config, serverNumber int, 
 	log.Printf("Get element with Key: %s contacting %s", n1, config.Address[serverNumber].Addr)
 
 	args := serverOperation.MessageSequential{Key: n1, OperationType: 2}
-	result := serverOperation.ResponseSequential{Deliverable: false, Done: false}
+	result := serverOperation.ResponseSequential{Done: false}
 
 	log.Printf(call)
 
@@ -148,7 +148,7 @@ func deleteElementFromDsSequential(key string, config Config, serverNumber int, 
 		return fmt.Errorf(datastoreError+": %w", err)
 	}
 
-	if result.Deliverable {
+	if result.Done {
 		log.Println("Successful operation for message with key: ", args.Key)
 	} else {
 		log.Println("Failed operation for message with key: ", args.Key)
@@ -164,7 +164,7 @@ func deleteElementFromDsCausal(key string, config Config, serverNumber int, clie
 	log.Printf("Get element with Key: %s contacting %s\n", n1, config.Address[serverNumber].Addr)
 
 	args := serverOperation.MessageCausal{Key: n1, VectorTimestamp: make([]int, len(config.Address)), OperationType: 2}
-	result := serverOperation.ResponseCausal{Deliverable: false}
+	result := serverOperation.ResponseCausal{Done: false}
 
 	err := client.Call("ServerCausal.CausalSendElement", args, &result)
 
@@ -172,7 +172,7 @@ func deleteElementFromDsCausal(key string, config Config, serverNumber int, clie
 		return fmt.Errorf(datastoreError+": %w", err)
 	}
 
-	if result.Deliverable {
+	if result.Done {
 		log.Println("Successful operation for message with key: ", args.Key)
 	} else {
 		log.Println("Failed operation for message with key: ", args.Key)

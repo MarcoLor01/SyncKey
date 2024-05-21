@@ -85,7 +85,6 @@ func (s *ServerSequential) sequentialSendToSingleServer(addr string, message Mes
 		return fmt.Errorf("error in saving message in the queue: %w", err1)
 	}
 
-	//Ho inserito il messaggio nella coda, ritorno il risultato
 	ch <- *reply
 
 	return nil
@@ -95,15 +94,7 @@ func (s *ServerSequential) SaveMessageQueue(message MessageSequential, reply *Re
 
 	//Tutti i server aggiornano il clock, tranne colui che l'ha inviato perché l'ha già aggiornato inizialmente
 	//Per poterlo assegnare al messaggio
-
-	s.myClockMutex.Lock()
-	if message.ServerId != MyId {
-		if message.ScalarTimestamp > s.MyScalarClock {
-			s.MyScalarClock = message.ScalarTimestamp
-		}
-		s.MyScalarClock++
-	}
-	s.myClockMutex.Unlock()
+	s.incrementClockReceive(message)
 
 	//Aggiungo il messaggio in coda
 	s.addToQueueSequential(message)
@@ -184,8 +175,8 @@ func (s *ServerSequential) SequentialSendAck(messageAck AckMessage, result *Resp
 	s.myQueueMutex.Lock()
 	isInQueue := false
 	for _, msg := range s.LocalQueue {
-		if msg.MessageSeq.IdUnique == messageAck.Element.IdUnique {
-			msg.MessageSeq.NumberAck++
+		if msg.IdUnique == messageAck.Element.IdUnique {
+			msg.NumberAck++
 			log.Println("Ho ricevuto un ACK da: ", messageAck.MyServerId, "per il messaggio con key: ", messageAck.Element.Key)
 			isInQueue = true
 			break
@@ -232,7 +223,7 @@ func (s *ServerSequential) checkQueue(message MessageSequential, ch chan Respons
 	// Controllo se la coda non è vuota
 
 	if len(s.LocalQueue) != 0 {
-		messageInQueue := s.LocalQueue[0].MessageSeq
+		messageInQueue := s.LocalQueue[0]
 		if messageInQueue.IdUnique == message.IdUnique &&
 			messageInQueue.NumberAck == len(addresses.Addresses) {
 			// Questa condizione è verificata
@@ -289,4 +280,15 @@ func (s *ServerSequential) SequentialGetElement(key string, reply *string) error
 		s.myDatastoreMutex.Unlock()
 	}
 	return nil
+}
+
+func (s *ServerSequential) incrementClockReceive(message MessageSequential) {
+	s.myClockMutex.Lock()
+	if message.ServerId != MyId {
+		if message.ScalarTimestamp > s.MyScalarClock {
+			s.MyScalarClock = message.ScalarTimestamp
+		}
+		s.MyScalarClock++
+	}
+	s.myClockMutex.Unlock()
 }

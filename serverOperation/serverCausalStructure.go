@@ -2,18 +2,6 @@ package serverOperation
 
 import "sync"
 
-var MyId int //ID del server
-var addresses ServerInformation
-
-type ServerInformation struct {
-	Addresses []ServerAddress `json:"address"`
-}
-
-type ServerAddress struct {
-	Addr string `json:"addr"`
-	Id   int    `json:"id"`
-} //Struttura che contiene l'indirizzo e l'id di un server
-
 //Strutture di cui necessito per la consistenza causale
 
 type MessageCausal struct {
@@ -23,17 +11,19 @@ type MessageCausal struct {
 	ServerId        int
 	numberAck       int
 	OperationType   int
+	IdUnique        string
 }
 
 type ResponseCausal struct {
-	Deliverable bool
+	Done bool
 } //Risposta per la consistenza causale
 
 type ServerCausal struct {
-	DataStore  map[string]string //Il mio datastore
-	LocalQueue []*MessageCausal  //Coda locale
-	MyClock    []int             //Il mio vettore di clock vettoriale
-	myMutex    sync.Mutex        //Mutex per la mutua esclusione
+	DataStore    map[string]string //Il mio datastore
+	LocalQueue   []*MessageCausal  //Coda locale
+	myQueueMutex sync.Mutex        //Mutex per la sincronizzazione dell'accesso in coda
+	MyClock      []int             //Il mio vettore di clock vettoriale
+	myClockMutex sync.Mutex        //Mutex per la sincronizzazione dell'accesso al clock
 }
 
 func CreateNewCausalDataStore() *ServerCausal {
@@ -49,4 +39,16 @@ func CreateNewCausalDataStore() *ServerCausal {
 func InitializeServerCausal() *ServerCausal {
 	myServer := CreateNewCausalDataStore()
 	return myServer
+}
+
+func (s *ServerCausal) prepareMessage(message *MessageCausal) {
+	message.VectorTimestamp = s.MyClock
+	message.ServerId = MyId
+	message.IdUnique = generateUniqueID()
+}
+
+func (s *ServerCausal) incrementMyTimestamp() {
+	s.myClockMutex.Lock()
+	s.MyClock[MyId-1] += 1
+	s.myClockMutex.Unlock()
 }

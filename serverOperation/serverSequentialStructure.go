@@ -8,11 +8,6 @@ import (
 
 //Strutture di cui necessito per la consistenza sequenziale
 
-type MessageSeqQueue struct {
-	MessageSeq *MessageSequential
-	Inserted   bool
-}
-
 type MessageSequential struct {
 	Key                  string
 	Value                string
@@ -30,10 +25,7 @@ type MessageSequential struct {
 //}
 
 type ResponseSequential struct {
-	Done                    bool
-	Deliverable             bool
-	DeliverableServerNumber int
-	Retry                   bool
+	Done bool
 } //Risposta per la consistenza sequenziale
 
 type AckMessage struct {
@@ -42,18 +34,18 @@ type AckMessage struct {
 }
 
 type ServerSequential struct {
-	DataStore        map[string]string  //Il mio Datastore
-	myDatastoreMutex sync.Mutex         //Mutex per l'accesso al Datastore
-	LocalQueue       []*MessageSeqQueue //Coda locale
-	myQueueMutex     sync.Mutex         //Mutex per l'accesso alla coda
-	MyScalarClock    int                //Clock scalare
-	myClockMutex     sync.Mutex         //Mutex per l'accesso al clock scalare
+	DataStore        map[string]string    //Il mio Datastore
+	myDatastoreMutex sync.Mutex           //Mutex per l'accesso al Datastore
+	LocalQueue       []*MessageSequential //Coda locale
+	myQueueMutex     sync.Mutex           //Mutex per l'accesso alla coda
+	MyScalarClock    int                  //Clock scalare
+	myClockMutex     sync.Mutex           //Mutex per l'accesso al clock scalare
 }
 
 func CreateNewSequentialDataStore() *ServerSequential {
 
 	return &ServerSequential{
-		LocalQueue:    make([]*MessageSeqQueue, 0),
+		LocalQueue:    make([]*MessageSequential, 0),
 		DataStore:     make(map[string]string),
 		MyScalarClock: 0, //Initial Clock
 	}
@@ -81,5 +73,5 @@ func InitializeAndRegisterServerSequential(server *rpc.Server) {
 }
 
 func (s *ServerSequential) createResponseSequential() *ResponseSequential {
-	return &ResponseSequential{Deliverable: false, Done: false}
+	return &ResponseSequential{Done: false}
 }
