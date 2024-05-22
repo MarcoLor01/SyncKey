@@ -23,4 +23,22 @@ Per entrare all'interno del client ed eseguire le operazioni di ```put```,```del
 Per visualizzare i vari Logs dei server e seguirli in tempo reale (attualmente 3 repliche) è possibile eseguire 
 ```docker logs -f synckey-server1-1```, dove -1 può essere sostituito con l'indice del server di cui vogliamo visualizzarne i logs.
 
-**Utilizzo da AWS***
+**Utilizzo da AWS**
+
+Lanciare una nuova istanza tramite AWS selezionando un SO (nel caso descritto verrà usato Amazon Linux), accedere ad essa tramite SSH eseguendo: 
+```ssh -i /percorso/al/tuo/file.pem ec2-user@<Public IP o Public DNS>``` sostituendo ```/percorso/al/tuo/file.pem``` con il percorso locale alla key .pem e ```Public IP o Public DNS``` con l'indirizzo IP pubblico o il DNS pubblico dell'istanza EC2. 
+
+Installare git tramite: ```sudo yum install git```
+
+Clonare repository tramite: ```git clone https://github.com/MarcoLor01/SyncKey```
+
+Installare Docker-Compose tramite: 
+```sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose```
+Dopo aver scaricato l'eseguibile, aggiungi i permessi di esecuzione con il seguente comando:
+```sudo chmod +x /usr/local/bin/docker-compose```
+
+Runnare demon docker con il comando: ```sudo service docker start```
+
+Per poter aprire bash installiamo tmux: ```sudo yum install tmux```
+
+
