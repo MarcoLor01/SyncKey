@@ -12,7 +12,7 @@ Impostare la variabile CONFIG=1 all'interno del file .env, successivamente lanci
 
 **Linux**
 
-E' necessario prima modificare i permessi di fle per renderlo eseguibile con il comando: ```chmod +x script.sh``` e successivamente lanciare il file bash con il comando: ```sh script.sh```
+E' necessario prima modificare i permessi del file per renderlo eseguibile con il comando: ```chmod +x script.sh``` e successivamente lanciare il file bash con il comando: ```sh script.sh```
 
 **Utilizzo da Docker**
 
