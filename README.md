@@ -16,4 +16,11 @@ E' necessario prima modificare i permessi di fle per renderlo eseguibile con il 
 
 **Utilizzo da Docker**
 
-Impostare la variabile CONFIG=2 nel file .env, successivamente seguire le istruzioni in base al proprio SO
+Impostare la variabile CONFIG=2 nel file .env, successivamente seguire le istruzioni in base al proprio SO per lanciare i container.
+
+Per entrare all'interno del client ed eseguire le operazioni di ```put```,```delete``` o ```get```, entrare all'interno del container del Client tramite il comando: ```docker exec -it synckey-client-1 sh -c 'cd clients && ./client' ```.
+
+Per visualizzare i vari Logs dei server e seguirli in tempo reale (attualmente 3 repliche) è possibile eseguire ```docker logs -f synckey-server1-1```, dove -1 può essere sostituito con l'indice del server di cui vogliamo visualizzarne i logs.
+
+**Utilizzo da AWS***
+...
