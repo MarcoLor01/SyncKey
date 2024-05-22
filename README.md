@@ -1,4 +1,4 @@
-**SyncKey**💾👨‍💻
+# <span style="font-size: 2em;">**SyncKey**💾👨‍💻</span>
 
 Implementazione di un Datastore Distribuito, mantenuto consistente tramite algoritmi di Multicast Totalmente e Causalmente Ordinato
 
