@@ -6,7 +6,7 @@ services:
       dockerfile: DockerfileServer
       args:
         SERVER_FILE: servers/server1.go
-        SERVER_ADDR: 8082
+        SERVER_PORT: 8082
     stdin_open: true
     tty: true
     ports:
@@ -24,7 +24,7 @@ services:
       dockerfile: DockerfileServer
       args:
         SERVER_FILE: servers/server2.go
-        SERVER_ADDR: 8083
+        SERVER_PORT: 8083
     stdin_open: true
     tty: true
     ports:
@@ -42,7 +42,7 @@ services:
       dockerfile: DockerfileServer
       args:
         SERVER_FILE: servers/server3.go
-        SERVER_ADDR: 8084
+        SERVER_PORT: 8084
     stdin_open: true
     tty: true
     ports:
@@ -64,8 +64,6 @@ services:
       - server1
       - server2
       - server3
-      - server4
-      - server5
     ports:
       - "8080:8080"
     networks:

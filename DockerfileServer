@@ -3,7 +3,8 @@ FROM golang:latest
 WORKDIR /SyncKey
 
 COPY go.mod .
-COPY serverOperation .
+COPY serverOperation ./serverOperation
+COPY common ./common
 COPY serversAddrDocker.json .
 
 RUN go get -u github.com/joho/godotenv
@@ -12,11 +13,10 @@ RUN go get -u github.com/google/uuid
 ARG SERVER_FILE
 ENV SERVER_FILE=${SERVER_FILE}
 ENV ENV_PATH=./.env
-ENV SERVER_ADDR=${SERVER_ADDR}
+ENV SERVER_PORT=${SERVER_PORT}
 
 COPY . .
 
-EXPOSE ${SERVER_ADDR}
-CMD ["sh", "-cx", "go run ${SERVER_FILE}"]
-#CMD go run ${SERVER_FILE}
+EXPOSE ${SERVER_PORT}
 
+CMD ["sh", "-cx", "go run ${SERVER_FILE}"]
