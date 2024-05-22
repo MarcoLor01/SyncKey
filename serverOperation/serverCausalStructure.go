@@ -2,37 +2,22 @@ package serverOperation
 
 import (
 	"fmt"
+	"main/common"
 	"sync"
 )
 
-//Strutture di cui necessito per la consistenza causale
-
-type MessageCausal struct {
-	Key             string
-	Value           string
-	VectorTimestamp []int
-	ServerId        int
-	numberAck       int
-	OperationType   int
-	IdUnique        string
-}
-
-type ResponseCausal struct {
-	Done bool
-} //Risposta per la consistenza causale
-
 type ServerCausal struct {
-	DataStore    map[string]string //Il mio datastore
-	LocalQueue   []*MessageCausal  //Coda locale
-	myQueueMutex sync.Mutex        //Mutex per la sincronizzazione dell'accesso in coda
-	MyClock      []int             //Il mio vettore di clock vettoriale
-	myClockMutex sync.Mutex        //Mutex per la sincronizzazione dell'accesso al clock
+	DataStore    map[string]string       //Il mio datastore
+	LocalQueue   []*common.MessageCausal //Coda locale
+	myQueueMutex sync.Mutex              //Mutex per la sincronizzazione dell'accesso in coda
+	MyClock      []int                   //Il mio vettore di clock vettoriale
+	myClockMutex sync.Mutex              //Mutex per la sincronizzazione dell'accesso al clock
 }
 
 func CreateNewCausalDataStore() *ServerCausal {
 
 	return &ServerCausal{
-		LocalQueue: make([]*MessageCausal, 0),
+		LocalQueue: make([]*common.MessageCausal, 0),
 		MyClock:    make([]int, len(addresses.Addresses)), //My vectorial Clock
 		DataStore:  make(map[string]string),
 	}
@@ -44,7 +29,7 @@ func InitializeServerCausal() *ServerCausal {
 	return myServer
 }
 
-func (s *ServerCausal) prepareMessage(message *MessageCausal) {
+func (s *ServerCausal) prepareMessage(message *common.MessageCausal) {
 	message.VectorTimestamp = s.MyClock
 	message.ServerId = MyId
 	message.IdUnique = generateUniqueID()
@@ -58,7 +43,7 @@ func (s *ServerCausal) incrementMyTimestamp() {
 
 //Funzione per la rimozione di un messaggio dalla coda nel caso di operazione di Delete nella consistenza causale
 
-func (s *ServerCausal) removeFromQueueDeletingCausal(message MessageCausal) error {
+func (s *ServerCausal) removeFromQueueDeletingCausal(message common.MessageCausal) error {
 	var isHere bool
 	for i, msg := range s.LocalQueue {
 		if message.IdUnique == msg.IdUnique {
@@ -76,7 +61,7 @@ func (s *ServerCausal) removeFromQueueDeletingCausal(message MessageCausal) erro
 
 //Funzione per l'eliminazione di un messaggio dalla coda nel caso di consistenza causale
 
-func (s *ServerCausal) removeFromQueueCausal(message MessageCausal) error {
+func (s *ServerCausal) removeFromQueueCausal(message common.MessageCausal) error {
 	var isHere bool
 	for i, msg := range s.LocalQueue {
 		if message.IdUnique == msg.IdUnique {
@@ -90,4 +75,14 @@ func (s *ServerCausal) removeFromQueueCausal(message MessageCausal) error {
 		return fmt.Errorf("message not in queue")
 	}
 	return nil
+}
+
+func (s *ServerCausal) checkCondition(message *common.MessageCausal, mod bool) bool {
+
+	if MyId == message.ServerId {
+		mod = message.VectorTimestamp[message.ServerId-1] == s.MyClock[message.ServerId-1]
+	} else {
+		mod = message.VectorTimestamp[message.ServerId-1] == s.MyClock[message.ServerId-1]+1
+	}
+	return mod
 }

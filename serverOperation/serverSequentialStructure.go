@@ -2,51 +2,30 @@ package serverOperation
 
 import (
 	"log"
+	"main/common"
 	"net/rpc"
 	"sync"
 	"time"
 )
 
-//Strutture di cui necessito per la consistenza sequenziale
-
-type MessageSequential struct {
-	Key                  string
-	Value                string
-	ScalarTimestamp      int
-	ServerId             int    //Necessito di sapere chi ha inviato il messaggio, questo perché se ho un server che invia un messaggio a un altro server, il server che invia il messaggio non deve aggiornare il suo scalarClock
-	NumberAck            int    //Solo se number == NumberOfServers il messaggio diventa consegnabile
-	OperationType        int    //putOperation == 1, deleteOperation == 2
-	InsertQueueTimestamp int64  //Quando è stato aggiunto in coda il messaggio
-	IdUnique             string //Id univoco che identifica il messaggio, aggiunto perché il confronto con key e value provocava problemi in caso di messaggi con key equivalente
-}
-
-//type ServerDeliverMessage struct {
-//	Message                        MessageSequential
-//	DeliverableServerNumberMessage int
-//}
-
-type ResponseSequential struct {
-	Done bool
-} //Risposta per la consistenza sequenziale
-
 type AckMessage struct {
-	Element    MessageSequential
+	Element    common.MessageSequential
 	MyServerId int
 }
 
 type ServerSequential struct {
-	DataStore        map[string]string    //Il mio Datastore
-	myDatastoreMutex sync.Mutex           //Mutex per l'accesso al Datastore
-	LocalQueue       []*MessageSequential //Coda locale
-	myQueueMutex     sync.Mutex           //Mutex per l'accesso alla coda
-	MyScalarClock    int                  //Clock scalare
-	myClockMutex     sync.Mutex           //Mutex per l'accesso al clock scalare
+	DataStore        map[string]string           //Il mio Datastore
+	myDatastoreMutex sync.Mutex                  //Mutex per l'accesso al Datastore
+	LocalQueue       []*common.MessageSequential //Coda locale
+	myQueueMutex     sync.Mutex                  //Mutex per l'accesso alla coda
+	MyScalarClock    int                         //Clock scalare
+	myClockMutex     sync.Mutex                  //Mutex per l'accesso al clock scalare
 }
 
 func CreateNewSequentialDataStore() *ServerSequential {
 
 	return &ServerSequential{
-		LocalQueue:    make([]*MessageSequential, 0),
+		LocalQueue:    make([]*common.MessageSequential, 0),
 		DataStore:     make(map[string]string),
 		MyScalarClock: 0, //Initial Clock
 	}
@@ -73,13 +52,13 @@ func InitializeAndRegisterServerSequential(server *rpc.Server) {
 	}
 }
 
-func (s *ServerSequential) createResponseSequential() *ResponseSequential {
-	return &ResponseSequential{Done: false}
+func (s *ServerSequential) createResponseSequential() *common.ResponseSequential {
+	return &common.ResponseSequential{Done: false}
 }
 
 //Funzione per creazione di un messaggio di ACK
 
-func (s *ServerSequential) createAckMessage(Message MessageSequential) AckMessage {
+func (s *ServerSequential) createAckMessage(Message common.MessageSequential) AckMessage {
 	return AckMessage{
 		Element:    Message,
 		MyServerId: MyId,
@@ -88,7 +67,7 @@ func (s *ServerSequential) createAckMessage(Message MessageSequential) AckMessag
 
 //Funzione per la rimozione di un messaggio dal datastore
 
-func (s *ServerSequential) sequentialDeleteElementDatastore(message MessageSequential) {
+func (s *ServerSequential) sequentialDeleteElementDatastore(message common.MessageSequential) {
 	s.myDatastoreMutex.Lock()
 	log.Printf("ESEGUITA DA SERVER %d azione di delete, key: %s\n", MyId, message.Key)
 	delete(s.DataStore, message.Key)
@@ -98,7 +77,7 @@ func (s *ServerSequential) sequentialDeleteElementDatastore(message MessageSeque
 
 //Funzione per aggiungere un nuovo messaggio al datastore
 
-func (s *ServerSequential) sequentialAddElementDatastore(message MessageSequential) {
+func (s *ServerSequential) sequentialAddElementDatastore(message common.MessageSequential) {
 	s.myDatastoreMutex.Lock()
 	log.Printf("ESEGUITA DA SERVER %d azione di put, key: %s, value: %s\n", MyId, message.Key, message.Value)
 	s.DataStore[message.Key] = message.Value
@@ -108,7 +87,7 @@ func (s *ServerSequential) sequentialAddElementDatastore(message MessageSequenti
 
 //Funzione che esegue ulteriori controlli ed elimina il primo termine dalla coda locale del server
 
-func (s *ServerSequential) updateQueue(message MessageSequential, reply *ResponseSequential) {
+func (s *ServerSequential) updateQueue(message common.MessageSequential, reply *common.ResponseSequential) {
 	s.myQueueMutex.Lock()
 	if len(s.LocalQueue) != 0 && s.LocalQueue[0].IdUnique == message.IdUnique {
 		s.LocalQueue = append(s.LocalQueue[:0], s.LocalQueue[1:]...)
@@ -121,7 +100,7 @@ func (s *ServerSequential) updateQueue(message MessageSequential, reply *Respons
 
 //Funzione per la rimozione di un messaggio dalla coda per l'operazione di Delete nel caso della consistenza sequenziale
 
-func (s *ServerSequential) removeFromQueueDeletingSequential(message MessageSequential) {
+func (s *ServerSequential) removeFromQueueDeletingSequential(message common.MessageSequential) {
 	for i, msg := range s.LocalQueue {
 		if message.Key == msg.Key && message.Value == msg.Value && message.ScalarTimestamp == msg.ScalarTimestamp {
 			delete(s.DataStore, msg.Key)
@@ -133,7 +112,7 @@ func (s *ServerSequential) removeFromQueueDeletingSequential(message MessageSequ
 
 //Funzione per la rimozione di un messaggio dalla coda nel caso della consistenza sequenziale
 
-func (s *ServerSequential) removeFromQueueSequential(message MessageSequential) {
+func (s *ServerSequential) removeFromQueueSequential(message common.MessageSequential) {
 	for i, msg := range s.LocalQueue {
 		if message.Key == msg.Key && message.Value == msg.Value && message.ScalarTimestamp == msg.ScalarTimestamp {
 			s.DataStore[msg.Key] = msg.Value
@@ -143,7 +122,7 @@ func (s *ServerSequential) removeFromQueueSequential(message MessageSequential) 
 	}
 }
 
-func (s *ServerSequential) addToQueueSequential(message MessageSequential) {
+func (s *ServerSequential) addToQueueSequential(message common.MessageSequential) {
 	s.myQueueMutex.Lock()
 	defer s.myQueueMutex.Unlock()
 	message.InsertQueueTimestamp = time.Now().UnixNano()

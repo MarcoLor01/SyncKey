@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"golang.org/x/sync/errgroup"
 	"log"
+	"main/common"
 	"net/rpc"
 	"time"
 )
 
 //Funzione con cui il ricevente del Client informa tutti i server del messaggio ricevuto
 
-func (s *ServerSequential) SequentialSendElement(message MessageSequential, response *ResponseSequential) error {
+func (s *ServerSequential) SequentialSendElement(message common.MessageSequential, response *common.ResponseSequential) error {
 
 	//Aggiorno il mio clock scalare e lo allego al messaggio da inviare a tutti i server
 	//Genero inoltre un ID univoco e lo allego al messaggio insieme al mio ID, in questo modo tutti sapranno in ogni momento chi ha generato il messaggio
@@ -37,15 +38,15 @@ func (s *ServerSequential) updateClock() {
 	s.myClockMutex.Unlock()
 }
 
-func (s *ServerSequential) prepareMessage(message *MessageSequential) {
+func (s *ServerSequential) prepareMessage(message *common.MessageSequential) {
 	message.ScalarTimestamp = s.MyScalarClock
 	message.ServerId = MyId
 	message.IdUnique = generateUniqueID()
 }
 
-func (s *ServerSequential) sendToOtherServers(message MessageSequential, response *ResponseSequential) error {
+func (s *ServerSequential) sendToOtherServers(message common.MessageSequential, response *common.ResponseSequential) error {
 
-	ch := make(chan ResponseSequential, len(addresses.Addresses))
+	ch := make(chan common.ResponseSequential, len(addresses.Addresses))
 
 	//usiamo un errgroup.Group per la gestione degli errori all'interno delle goroutine
 
@@ -71,7 +72,7 @@ func (s *ServerSequential) sendToOtherServers(message MessageSequential, respons
 	return nil
 }
 
-func (s *ServerSequential) sequentialSendToSingleServer(addr string, message MessageSequential, ch chan ResponseSequential) error {
+func (s *ServerSequential) sequentialSendToSingleServer(addr string, message common.MessageSequential, ch chan common.ResponseSequential) error {
 
 	client, err := rpc.Dial("tcp", addr)
 	if err != nil {
@@ -90,7 +91,7 @@ func (s *ServerSequential) sequentialSendToSingleServer(addr string, message Mes
 	return nil
 }
 
-func (s *ServerSequential) SaveMessageQueue(message MessageSequential, reply *ResponseSequential) error {
+func (s *ServerSequential) SaveMessageQueue(message common.MessageSequential, reply *common.ResponseSequential) error {
 
 	//Tutti i server aggiornano il clock, tranne colui che l'ha inviato perché l'ha già aggiornato inizialmente
 	//Per poterlo assegnare al messaggio
@@ -102,7 +103,7 @@ func (s *ServerSequential) SaveMessageQueue(message MessageSequential, reply *Re
 	//A questo punto ogni server ha inviato il messaggio in coda, devo informare con un messaggio in Multicast,
 	//il corretto ricevimento del messaggio
 
-	ch := make(chan ResponseSequential, len(addresses.Addresses))
+	ch := make(chan common.ResponseSequential, len(addresses.Addresses))
 	var g errgroup.Group
 
 	//SendAck
@@ -146,7 +147,7 @@ func (s *ServerSequential) SaveMessageQueue(message MessageSequential, reply *Re
 
 //sendAck si occupa di informare un server della ricezione del messaggio da parte del server chiamante
 
-func (s *ServerSequential) sendAck(addr string, messageAck AckMessage, ch chan ResponseSequential) error {
+func (s *ServerSequential) sendAck(addr string, messageAck AckMessage, ch chan common.ResponseSequential) error {
 
 	client, err := rpc.Dial("tcp", addr)
 	if err != nil {
@@ -170,7 +171,7 @@ func (s *ServerSequential) sendAck(addr string, messageAck AckMessage, ch chan R
 	return nil
 }
 
-func (s *ServerSequential) SequentialSendAck(messageAck AckMessage, result *ResponseSequential) error {
+func (s *ServerSequential) SequentialSendAck(messageAck AckMessage, result *common.ResponseSequential) error {
 
 	//Questa funzione itera sulla mia coda, quando trova un messaggio che ha
 	//Id univoco uguale a quello del messaggio che mi è stato inviato, incrementa il contatore degli ACK ricevuti
@@ -195,10 +196,10 @@ func (s *ServerSequential) SequentialSendAck(messageAck AckMessage, result *Resp
 //1) Il messaggio è il primo in coda e ha ricevuto tutti gli ACK
 //2) Per ogni processo pk c'è un messaggio msg_k in queue_j con timestamp maggiore di quello di msg_i
 
-func (s *ServerSequential) applicationDeliveryCondition(message MessageSequential, response *ResponseSequential) error {
+func (s *ServerSequential) applicationDeliveryCondition(message common.MessageSequential, response *common.ResponseSequential) error {
 
 	// Controlliamo la prima condizione
-	ch := make(chan ResponseSequential, 1)
+	ch := make(chan common.ResponseSequential, 1)
 
 	for {
 		s.checkQueue(message, ch)
@@ -221,7 +222,7 @@ func (s *ServerSequential) applicationDeliveryCondition(message MessageSequentia
 	return nil
 }
 
-func (s *ServerSequential) checkQueue(message MessageSequential, ch chan ResponseSequential) {
+func (s *ServerSequential) checkQueue(message common.MessageSequential, ch chan common.ResponseSequential) {
 
 	s.myQueueMutex.Lock()
 	// Controllo se la coda non è vuota
@@ -231,16 +232,16 @@ func (s *ServerSequential) checkQueue(message MessageSequential, ch chan Respons
 		if messageInQueue.IdUnique == message.IdUnique &&
 			messageInQueue.NumberAck == len(addresses.Addresses) {
 			// Questa condizione è verificata
-			ch <- ResponseSequential{Done: true}
+			ch <- common.ResponseSequential{Done: true}
 		} else {
-			ch <- ResponseSequential{Done: false}
+			ch <- common.ResponseSequential{Done: false}
 		}
 	}
 
 	s.myQueueMutex.Unlock()
 }
 
-func (s *ServerSequential) sendToApplication(message MessageSequential, reply *ResponseSequential) error {
+func (s *ServerSequential) sendToApplication(message common.MessageSequential, reply *common.ResponseSequential) error {
 
 	replyUpdate := s.createResponseSequential()
 	s.updateQueue(message, replyUpdate) //Rimuovo il primo messaggio dalla coda
@@ -259,7 +260,7 @@ func (s *ServerSequential) sendToApplication(message MessageSequential, reply *R
 	return nil
 }
 
-func (s *ServerSequential) updateDataStore(message MessageSequential, reply *ResponseSequential) {
+func (s *ServerSequential) updateDataStore(message common.MessageSequential, reply *common.ResponseSequential) {
 	reply.Done = false
 	if message.OperationType == 1 {
 		s.sequentialAddElementDatastore(message)
@@ -286,7 +287,7 @@ func (s *ServerSequential) SequentialGetElement(key string, reply *string) error
 	return nil
 }
 
-func (s *ServerSequential) incrementClockReceive(message MessageSequential) {
+func (s *ServerSequential) incrementClockReceive(message common.MessageSequential) {
 	s.myClockMutex.Lock()
 	if message.ServerId != MyId {
 		if message.ScalarTimestamp > s.MyScalarClock {

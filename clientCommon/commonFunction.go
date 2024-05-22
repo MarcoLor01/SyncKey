@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/joho/godotenv"
 	"log"
-	"main/serverOperation"
+	"main/common"
 	"net/rpc"
 	"os"
 )
@@ -83,10 +83,10 @@ func addElementToDsSequential(key string, value string, config Config, serverNum
 
 	log.Printf("Adding element with Key: %s, and Value: %s contacting %s", n1, n2, config.Address[serverNumber].Addr)
 
-	args := serverOperation.MessageSequential{Key: n1, Value: n2, OperationType: 1}
+	args := common.MessageSequential{Key: n1, Value: n2, OperationType: 1}
 	log.Printf(call)
 
-	result := serverOperation.ResponseSequential{Done: false}
+	result := common.ResponseSequential{Done: false}
 
 	err := client.Call("ServerSequential.SequentialSendElement", args, &result) //Calling the SequentialSendElement routine
 	if err != nil {
@@ -111,10 +111,10 @@ func addElementToDsCausal(key string, value string, config Config, serverNumber 
 
 	log.Printf("Adding element with Key: %s, and Value: %s contacting %s", n1, n2, config.Address[serverNumber].Addr)
 
-	args := serverOperation.MessageCausal{Key: n1, Value: n2, VectorTimestamp: make([]int, len(config.Address)), OperationType: 1}
+	args := common.MessageCausal{Key: n1, Value: n2, VectorTimestamp: make([]int, len(config.Address)), OperationType: 1}
 	log.Printf(call)
 
-	result := serverOperation.ResponseCausal{Done: false}
+	result := common.ResponseCausal{Done: false}
 
 	err := client.Call("ServerCausal.CausalSendElement", args, &result) //Calling the CausalSendElement routine
 	if err != nil {
@@ -137,8 +137,8 @@ func deleteElementFromDsSequential(key string, config Config, serverNumber int, 
 
 	log.Printf("Get element with Key: %s contacting %s", n1, config.Address[serverNumber].Addr)
 
-	args := serverOperation.MessageSequential{Key: n1, OperationType: 2}
-	result := serverOperation.ResponseSequential{Done: false}
+	args := common.MessageSequential{Key: n1, OperationType: 2}
+	result := common.ResponseSequential{Done: false}
 
 	log.Printf(call)
 
@@ -163,8 +163,8 @@ func deleteElementFromDsCausal(key string, config Config, serverNumber int, clie
 
 	log.Printf("Get element with Key: %s contacting %s\n", n1, config.Address[serverNumber].Addr)
 
-	args := serverOperation.MessageCausal{Key: n1, VectorTimestamp: make([]int, len(config.Address)), OperationType: 2}
-	result := serverOperation.ResponseCausal{Done: false}
+	args := common.MessageCausal{Key: n1, VectorTimestamp: make([]int, len(config.Address)), OperationType: 2}
+	result := common.ResponseCausal{Done: false}
 
 	err := client.Call("ServerCausal.CausalSendElement", args, &result)
 

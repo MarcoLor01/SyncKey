@@ -5,11 +5,15 @@ WORKDIR /SyncKey
 COPY go.mod .
 COPY serverOperation .
 COPY serversAddrDocker.json .
+
 RUN go get -u github.com/joho/godotenv
+RUN go get -u github.com/google/uuid
+
 ARG SERVER_FILE
 ENV SERVER_FILE=${SERVER_FILE}
 ENV ENV_PATH=./.env
 ENV SERVER_ADDR=${SERVER_ADDR}
+
 COPY . .
 
 EXPOSE ${SERVER_ADDR}

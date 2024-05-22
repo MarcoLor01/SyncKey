@@ -3,11 +3,12 @@ package serverOperation
 import (
 	"fmt"
 	"golang.org/x/sync/errgroup"
+	"main/common"
 	"net/rpc"
 	"time"
 )
 
-func (s *ServerCausal) CausalSendElement(message MessageCausal, reply *ResponseCausal) error {
+func (s *ServerCausal) CausalSendElement(message common.MessageCausal, reply *common.ResponseCausal) error {
 	//Incremento il mio timestamp essendo il server mittente, e preparo il messaggio all'invio
 	s.incrementMyTimestamp()
 	s.prepareMessage(&message)
@@ -23,8 +24,8 @@ func (s *ServerCausal) CausalSendElement(message MessageCausal, reply *ResponseC
 	return nil
 }
 
-func (s *ServerCausal) causalSendToOtherServers(message MessageCausal, reply *ResponseCausal) error {
-	ch := make(chan ResponseCausal, len(addresses.Addresses))
+func (s *ServerCausal) causalSendToOtherServers(message common.MessageCausal, reply *common.ResponseCausal) error {
+	ch := make(chan common.ResponseCausal, len(addresses.Addresses))
 
 	//usiamo un errgroup.Group per la gestione degli errori all'interno delle goroutine
 
@@ -51,7 +52,7 @@ func (s *ServerCausal) causalSendToOtherServers(message MessageCausal, reply *Re
 	return nil
 }
 
-func (s *ServerCausal) causalSendToSingleServer(addr string, message MessageCausal, ch chan ResponseCausal) error {
+func (s *ServerCausal) causalSendToSingleServer(addr string, message common.MessageCausal, ch chan common.ResponseCausal) error {
 
 	client, err := rpc.Dial("tcp", addr)
 	if err != nil {
@@ -74,7 +75,7 @@ func (s *ServerCausal) causalSendToSingleServer(addr string, message MessageCaus
 	return nil
 }
 
-func (s *ServerCausal) SaveMessageQueue(message MessageCausal, reply *ResponseSequential) error {
+func (s *ServerCausal) SaveMessageQueue(message common.MessageCausal, reply *common.ResponseSequential) error {
 
 	//Aggiungo il messaggio in coda
 	s.addToQueueCausal(&message)
@@ -86,6 +87,7 @@ func (s *ServerCausal) SaveMessageQueue(message MessageCausal, reply *ResponseSe
 		return fmt.Errorf("error checking condition")
 	}
 	responseToSend := s.createResponseCausal()
+
 	//Ora posso andare a inserire in coda il messaggio e conseguentemente aggiornare il mio timestamp
 	err := s.sendMessageToApplication(message, responseToSend)
 	if err != nil {
@@ -95,22 +97,19 @@ func (s *ServerCausal) SaveMessageQueue(message MessageCausal, reply *ResponseSe
 	return nil
 }
 
-func (s *ServerCausal) addToQueueCausal(message *MessageCausal) {
+func (s *ServerCausal) addToQueueCausal(message *common.MessageCausal) {
 	s.myQueueMutex.Lock()
 	s.LocalQueue = append(s.LocalQueue, message)
 	s.myQueueMutex.Unlock()
 }
 
-func (s *ServerCausal) checkIfDeliverable(message *MessageCausal, reply *ResponseCausal) {
+func (s *ServerCausal) checkIfDeliverable(message *common.MessageCausal, reply *common.ResponseCausal) {
 	mod := false
 
 	for {
 		//Controllo la prima condizione, ovvero che: t(m)[i] = V_j[i] + 1
-		if MyId == message.ServerId {
-			mod = message.VectorTimestamp[message.ServerId-1] == s.MyClock[message.ServerId-1]
-		} else {
-			mod = message.VectorTimestamp[message.ServerId-1] == s.MyClock[message.ServerId-1]+1
-		}
+		mod = s.checkCondition(message, mod)
+
 		//Se la prima condizione è verificata, controllo la seconda, ovvero che t(m)[k] <= V_j[k] Per ogni k != i
 		response := s.createResponseCausal()
 		if mod {
@@ -133,7 +132,7 @@ func (s *ServerCausal) checkIfDeliverable(message *MessageCausal, reply *Respons
 	}
 }
 
-func (s *ServerCausal) sendMessageToApplication(message MessageCausal, reply *ResponseCausal) error {
+func (s *ServerCausal) sendMessageToApplication(message common.MessageCausal, reply *common.ResponseCausal) error {
 	//Incremento il mio timestamp
 	s.incrementClockReceive(&message)
 
@@ -156,7 +155,7 @@ func (s *ServerCausal) sendMessageToApplication(message MessageCausal, reply *Re
 	return nil
 }
 
-func (s *ServerCausal) incrementClockReceive(message *MessageCausal) {
+func (s *ServerCausal) incrementClockReceive(message *common.MessageCausal) {
 	//Aggiorno il clock come max(t[k],V_j[k]
 	for ind, ts := range message.VectorTimestamp {
 		if ts > s.MyClock[ind] {
@@ -169,6 +168,6 @@ func (s *ServerCausal) incrementClockReceive(message *MessageCausal) {
 	}
 }
 
-func (s *ServerCausal) createResponseCausal() *ResponseCausal {
-	return &ResponseCausal{Done: false}
+func (s *ServerCausal) createResponseCausal() *common.ResponseCausal {
+	return &common.ResponseCausal{Done: false}
 }
