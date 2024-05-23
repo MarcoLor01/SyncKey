@@ -8,15 +8,15 @@ Utilizzo in locale
 
 **Windows**
 
-Impostare la variabile CONFIG=1 all'interno del file .env, successivamente lanciare il file batch presente nella directory principale con il comando: ```start.bat```
+Impostare la variabile CONFIG=1 all'interno del file .env, successivamente lanciare il file batch presente nella directory principale con il comando: ```start.bat 1```
 
 **Linux**
 
-E' necessario prima modificare i permessi del file per renderlo eseguibile con il comando: ```chmod +x script.sh``` e successivamente lanciare il file bash con il comando: ```sh script.sh```
+E' necessario prima modificare i permessi del file per renderlo eseguibile con il comando: ```chmod +x script.sh``` e successivamente lanciare il file bash con il comando: ```sh script.sh 1```
 
 **Utilizzo da Docker**
 
-Impostare la variabile CONFIG=2 nel file .env, successivamente seguire le istruzioni in base al proprio SO per lanciare i container.
+Impostare la variabile CONFIG=2 nel file .env, successivamente seguire le istruzioni in base al proprio SO per lanciare i container, sostituendo 1 con 2 nel lancio del file bash o batch
 
 Per entrare all'interno del client ed eseguire le operazioni di ```put```,```delete``` o ```get```, entrare all'interno del container del Client tramite il comando: ```docker exec -it synckey-client-1 sh -c 'cd clients && ./client' ```.
 
