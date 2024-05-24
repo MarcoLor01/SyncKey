@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"log"
+	"main/common"
 	"math/rand"
 	"net/rpc"
 	"os"
 	"sort"
+	"sync"
 	"time"
 )
 
@@ -17,6 +19,11 @@ var addresses ServerInformation
 
 type ServerInformation struct {
 	Addresses []ServerAddress `json:"address"`
+}
+
+type ServerBase struct {
+	myClientMessage common.ClientMessage //Messaggi del client
+	myClientMutex   sync.Mutex           //Mutex per la sincronizzazione dell'accesso ai messaggi del client
 }
 
 type ServerAddress struct {
@@ -34,7 +41,7 @@ func (s *ServerSequential) orderQueue() {
 		if s.LocalQueue[i].ScalarTimestamp != s.LocalQueue[j].ScalarTimestamp {
 			return s.LocalQueue[i].ScalarTimestamp < s.LocalQueue[j].ScalarTimestamp
 		}
-		return s.LocalQueue[i].InsertQueueTimestamp < s.LocalQueue[j].InsertQueueTimestamp
+		return s.LocalQueue[i].ServerId < s.LocalQueue[j].ServerId
 	})
 }
 
@@ -119,4 +126,11 @@ func calculateDelay() int {
 	// Aggiungi il ritardo minimo di 500 millisecondi.
 	delay := randomDelay + 500
 	return delay
+}
+
+func (s *ServerBase) InitializeMessageClient() {
+	s.myClientMessage = common.ClientMessage{
+		ServerId:            -1, // Inserisci l'ID del server appropriato qui
+		ActualNumberMessage: -1, // Inserisci il numero del messaggio appropriato qui
+	}
 }

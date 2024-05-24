@@ -2,7 +2,9 @@ package serverOperation
 
 import (
 	"fmt"
+	"log"
 	"main/common"
+	"net/rpc"
 	"sync"
 )
 
@@ -12,6 +14,7 @@ type ServerCausal struct {
 	myQueueMutex sync.Mutex              //Mutex per la sincronizzazione dell'accesso in coda
 	MyClock      []int                   //Il mio vettore di clock vettoriale
 	myClockMutex sync.Mutex              //Mutex per la sincronizzazione dell'accesso al clock
+	BaseServer   ServerBase              //Cose in comune tra server causale e sequenziale
 }
 
 func CreateNewCausalDataStore() *ServerCausal {
@@ -85,4 +88,30 @@ func (s *ServerCausal) checkCondition(message *common.MessageCausal, mod bool) b
 		mod = message.VectorTimestamp[message.ServerId-1] == s.MyClock[message.ServerId-1]+1
 	}
 	return mod
+}
+
+func (s *ServerCausal) createResponseCausal() *common.ResponseCausal {
+	return &common.ResponseCausal{Done: false}
+}
+
+func (s *ServerCausal) incrementClockReceive(message *common.MessageCausal) {
+	//Aggiorno il clock come max(t[k],V_j[k]
+	for ind, ts := range message.VectorTimestamp {
+		if ts > s.MyClock[ind] {
+			s.MyClock[ind] = ts
+		}
+	}
+	//Se non sono stato io a inviare il messaggio, incremento di uno la mia variabile
+	if MyId != message.ServerId {
+		message.VectorTimestamp[MyId-1]++
+	}
+}
+
+func InitializeAndRegisterServerCausal(server *rpc.Server) {
+	myServer := InitializeServerCausal()
+	err := server.Register(myServer)
+	if err != nil {
+		log.Fatal("Format of service SyncKey is not correct: ", err)
+	}
+	myServer.BaseServer.InitializeMessageClient()
 }

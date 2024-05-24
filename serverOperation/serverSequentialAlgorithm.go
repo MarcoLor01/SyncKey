@@ -289,6 +289,7 @@ func (s *ServerSequential) SequentialGetElement(key string, reply *string) error
 
 func (s *ServerSequential) incrementClockReceive(message common.MessageSequential) {
 	s.myClockMutex.Lock()
+
 	if message.ServerId != MyId {
 		if message.ScalarTimestamp > s.MyScalarClock {
 			s.MyScalarClock = message.ScalarTimestamp

@@ -5,41 +5,50 @@ import (
 	"main/clientCommon"
 	"net/rpc"
 	"sync"
+	"time"
 )
 
 func funcServer1(wg *sync.WaitGroup, client *rpc.Client, config clientCommon.Config, consistency int) {
 	defer wg.Done()
 	//Write W(x)a su processo 0
 	fmt.Printf("Write W(x)a su processo 0\n")
-	err := clientCommon.HandlePutAction(consistency, "z", "c", config, 0, client)
+
+	err := clientCommon.HandlePutAction(consistency, "1", "c", config, 0, client)
 	if err != nil {
 		return
 	}
-	err = clientCommon.HandlePutAction(consistency, "ciao", "df", config, 0, client)
+
+	err = clientCommon.HandlePutAction(consistency, "4", "df", config, 0, client)
 	if err != nil {
 		return
 	}
+
+	err = clientCommon.HandlePutAction(consistency, "7", "df", config, 0, client)
 }
 
 func funcServer2(wg *sync.WaitGroup, client *rpc.Client, config clientCommon.Config, consistency int) {
 	defer wg.Done()
 	//W(x)b su processo 1
 	fmt.Printf("Write W(x)b su processo 1\n")
-	err := clientCommon.HandlePutAction(consistency, "y", "b", config, 1, client)
+	err := clientCommon.HandlePutAction(consistency, "2", "b", config, 1, client)
 	if err != nil {
 		return
 	}
 
+	time.Sleep(4 * time.Second)
+	err = clientCommon.HandlePutAction(consistency, "5", "sa", config, 0, client)
 }
 
 func funcServer3(wg *sync.WaitGroup, client *rpc.Client, config clientCommon.Config, consistency int) {
 	defer wg.Done()
 	//R(x) su processo 2 = b //R(x) su processo 3 = b
 	fmt.Printf("R(x) su processo 2 = b //R(x) su processo 3 = b\n")
-	err := clientCommon.HandlePutAction(consistency, "fds", "aaa", config, 1, client)
+	err := clientCommon.HandlePutAction(consistency, "3", "aaa", config, 1, client)
 	if err != nil {
 		return
 	}
+	err = clientCommon.HandlePutAction(consistency, "6", "df", config, 0, client)
+	err = clientCommon.HandlePutAction(consistency, "8", "df", config, 0, client)
 }
 
 func TestFirst() {

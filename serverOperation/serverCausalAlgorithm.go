@@ -11,10 +11,10 @@ import (
 func (s *ServerCausal) CausalSendElement(message common.MessageCausal, reply *common.ResponseCausal) error {
 	//Incremento il mio timestamp essendo il server mittente, e preparo il messaggio all'invio
 	s.incrementMyTimestamp()
+	//è inizializzata => lanciare goroutine che controlla se posso inviarlo
 	s.prepareMessage(&message)
 	//Messaggio pronto all'invio, inoltro con un messaggio Multicast a tutti gli altri server
 	response := s.createResponseCausal()
-
 	err := s.causalSendToOtherServers(message, response)
 	if err != nil {
 		return fmt.Errorf("SequentialSendElement: error sending to other servers: %v", err)
@@ -153,21 +153,4 @@ func (s *ServerCausal) sendMessageToApplication(message common.MessageCausal, re
 	}
 	reply.Done = true
 	return nil
-}
-
-func (s *ServerCausal) incrementClockReceive(message *common.MessageCausal) {
-	//Aggiorno il clock come max(t[k],V_j[k]
-	for ind, ts := range message.VectorTimestamp {
-		if ts > s.MyClock[ind] {
-			s.MyClock[ind] = ts
-		}
-	}
-	//Se non sono stato io a inviare il messaggio, incremento di uno la mia variabile
-	if MyId != message.ServerId {
-		message.VectorTimestamp[MyId-1]++
-	}
-}
-
-func (s *ServerCausal) createResponseCausal() *common.ResponseCausal {
-	return &common.ResponseCausal{Done: false}
 }

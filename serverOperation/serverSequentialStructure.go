@@ -5,7 +5,6 @@ import (
 	"main/common"
 	"net/rpc"
 	"sync"
-	"time"
 )
 
 type AckMessage struct {
@@ -20,6 +19,7 @@ type ServerSequential struct {
 	myQueueMutex     sync.Mutex                  //Mutex per l'accesso alla coda
 	MyScalarClock    int                         //Clock scalare
 	myClockMutex     sync.Mutex                  //Mutex per l'accesso al clock scalare
+	BaseServer       ServerBase                  //Cose in comune tra server causale e sequenziale
 }
 
 func CreateNewSequentialDataStore() *ServerSequential {
@@ -36,20 +36,13 @@ func InitializeServerSequential() *ServerSequential {
 	return myServer
 }
 
-func InitializeAndRegisterServerCausal(server *rpc.Server) {
-	myServer := InitializeServerCausal()
-	err := server.Register(myServer)
-	if err != nil {
-		log.Fatal("Format of service SyncKey is not correct: ", err)
-	}
-}
-
 func InitializeAndRegisterServerSequential(server *rpc.Server) {
 	myServer := InitializeServerSequential()
 	err := server.Register(myServer)
 	if err != nil {
 		log.Fatal("Format of service SyncKey is not correct: ", err)
 	}
+	myServer.BaseServer.InitializeMessageClient()
 }
 
 func (s *ServerSequential) createResponseSequential() *common.ResponseSequential {
@@ -125,7 +118,6 @@ func (s *ServerSequential) removeFromQueueSequential(message common.MessageSeque
 func (s *ServerSequential) addToQueueSequential(message common.MessageSequential) {
 	s.myQueueMutex.Lock()
 	defer s.myQueueMutex.Unlock()
-	message.InsertQueueTimestamp = time.Now().UnixNano()
 
 	for i, element := range s.LocalQueue {
 		if message.Key == element.Key {
