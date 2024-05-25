@@ -59,7 +59,6 @@ func (s *ServerSequential) createAckMessage(Message common.MessageSequential) Ac
 
 func (s *ServerSequential) sequentialDeleteElementDatastore(message common.MessageSequential) {
 	s.BaseServer.myDatastoreMutex.Lock()
-	log.Printf("ESEGUITA DA SERVER %d azione di delete, key: %s\n", MyId, message.MessageBase.Key)
 	delete(s.BaseServer.DataStore, message.MessageBase.Key)
 	s.BaseServer.printDataStore()
 	s.BaseServer.myDatastoreMutex.Unlock()
@@ -69,7 +68,6 @@ func (s *ServerSequential) sequentialDeleteElementDatastore(message common.Messa
 
 func (s *ServerSequential) sequentialAddElementDatastore(message common.MessageSequential) {
 	s.BaseServer.myDatastoreMutex.Lock()
-	log.Printf("ESEGUITA DA SERVER %d azione di put, key: %s, value: %s\n", MyId, message.MessageBase.Key, message.MessageBase.Value)
 	s.BaseServer.DataStore[message.MessageBase.Key] = message.MessageBase.Value
 	s.BaseServer.printDataStore()
 	s.BaseServer.myDatastoreMutex.Unlock()

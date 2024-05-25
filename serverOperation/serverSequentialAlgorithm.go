@@ -210,17 +210,13 @@ func (s *ServerSequential) SequentialSendAck(messageAck AckMessage, result *comm
 func (s *ServerSequential) applicationDeliveryCondition(message common.MessageSequential, response *common.Response) error {
 
 	ch := make(chan common.Response, 1)
-	chProcess := make(chan common.Response, 1)
 	// Controlliamo la prima condizione
 	for {
 		s.checkQueue(message, ch)
 		result := <-ch
 		if result.Done {
 			//Se la prima condizione è valida, valutiamo la seconda
-			s.checkSecondCondition(message, chProcess)
-			responseSecondCondition := <-chProcess
-
-			if responseSecondCondition.Done {
+			if s.checkSecondCondition(message) == true || s.lastValue() == true {
 				break
 			} else {
 				time.Sleep(1 * time.Second)
@@ -242,7 +238,7 @@ func (s *ServerSequential) applicationDeliveryCondition(message common.MessageSe
 	return nil
 }
 
-func (s *ServerSequential) checkSecondCondition(message common.MessageSequential, ch chan common.Response) {
+func (s *ServerSequential) checkSecondCondition(message common.MessageSequential) bool {
 	s.myQueueMutex.Lock()
 	defer s.myQueueMutex.Unlock()
 	for i := range addresses.Addresses {
@@ -258,13 +254,11 @@ func (s *ServerSequential) checkSecondCondition(message common.MessageSequential
 		}
 
 		if !found {
-			ch <- common.Response{Done: false}
-			return
+			return false
 		}
 	}
 
-	// If all replicas have at least one message with a greater timestamp, return true
-	ch <- common.Response{Done: true}
+	return true
 }
 
 func (s *ServerSequential) checkQueue(message common.MessageSequential, ch chan common.Response) {
@@ -355,4 +349,17 @@ func (s *ServerSequential) incrementClockReceive(message common.MessageSequentia
 	}
 	s.myClockMutex.Unlock()
 
+}
+
+func (s *ServerSequential) lastValue() bool {
+
+	s.myQueueMutex.Lock()
+	defer s.myQueueMutex.Unlock()
+
+	for _, msg := range s.LocalQueue {
+		if msg.MessageBase.Key != "LastValue" {
+			return false
+		}
+	}
+	return true
 }
