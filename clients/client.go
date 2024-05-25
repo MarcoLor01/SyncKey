@@ -10,6 +10,8 @@ import (
 	"strings"
 )
 
+var actualIdMessage = 1
+
 func createCasualClient(config clientCommon.Config) (int, *rpc.Client, error) {
 
 	//Prendo un valore random compreso tra 0 e il numero di server - 1,
@@ -18,7 +20,7 @@ func createCasualClient(config clientCommon.Config) (int, *rpc.Client, error) {
 
 	serverNumber := rand.Intn(len(config.Address) - 1)
 
-	client, err := rpc.Dial("tcp", config.Address[serverNumber].Addr)
+	client, err := rpc.Dial("tcp", config.Address[0].Addr)
 	if err != nil {
 		return -1, nil, fmt.Errorf("error in dialing: %w", err)
 	}
@@ -128,20 +130,23 @@ func switchAction(actionToDo, key, value string, consistency int, serverNumber i
 		os.Exit(-1)
 
 	case "put":
-		err := clientCommon.HandlePutAction(consistency, key, value, config, serverNumber, client)
+		err := clientCommon.HandlePutAction(consistency, key, value, config, serverNumber, client, 1, actualIdMessage)
 		if err != nil {
 			log.Fatal(err)
 		}
+		actualIdMessage++
 	case "delete":
-		err := clientCommon.HandleDeleteAction(consistency, key, config, serverNumber, client)
+		err := clientCommon.HandleDeleteAction(consistency, key, config, serverNumber, client, 1, actualIdMessage)
 		if err != nil {
 			log.Fatal(err)
 		}
+		actualIdMessage++
 	case "get":
-		err := clientCommon.HandleGetAction(consistency, key, client)
+		err := clientCommon.HandleGetAction(consistency, key, client, 1, actualIdMessage)
 		if err != nil {
 			log.Fatal(err)
 		}
+		actualIdMessage++
 	default:
 		log.Printf("Uncorrect flag")
 		return

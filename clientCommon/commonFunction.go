@@ -24,14 +24,14 @@ type Config struct {
 
 //Azione di put
 
-func HandlePutAction(consistency int, key string, value string, config Config, serverNumber int, client *rpc.Client) error {
+func HandlePutAction(consistency int, key string, value string, config Config, serverNumber int, client *rpc.Client, idMessageClient int, idMessage int) error {
 	if consistency == 0 {
-		err := addElementToDsCausal(key, value, config, serverNumber, client)
+		err := addElementToDsCausal(key, value, config, serverNumber, client, idMessageClient, idMessage)
 		if err != nil {
 			return fmt.Errorf("error adding element to datastore: %w", err)
 		}
 	} else {
-		err := addElementToDsSequential(key, value, config, serverNumber, client)
+		err := addElementToDsSequential(key, value, config, serverNumber, client, idMessageClient, idMessage)
 		if err != nil {
 			return fmt.Errorf("error adding element to datastore: %w", err)
 		}
@@ -41,14 +41,14 @@ func HandlePutAction(consistency int, key string, value string, config Config, s
 
 //Azione di delete
 
-func HandleDeleteAction(consistency int, key string, config Config, serverNumber int, client *rpc.Client) error {
+func HandleDeleteAction(consistency int, key string, config Config, serverNumber int, client *rpc.Client, idMessageClient int, idMessage int) error {
 	if consistency == 0 {
-		err := deleteElementFromDsCausal(key, config, serverNumber, client)
+		err := deleteElementFromDsCausal(key, config, serverNumber, client, idMessageClient, idMessage)
 		if err != nil {
 			return fmt.Errorf("error deleting element to datastore: %w", err)
 		}
 	} else {
-		err := deleteElementFromDsSequential(key, config, serverNumber, client)
+		err := deleteElementFromDsSequential(key, config, serverNumber, client, idMessageClient, idMessage)
 		if err != nil {
 			return fmt.Errorf("error deleting element to datastore: %w", err)
 		}
@@ -58,14 +58,14 @@ func HandleDeleteAction(consistency int, key string, config Config, serverNumber
 
 //Azione di get
 
-func HandleGetAction(consistency int, key string, client *rpc.Client) error {
+func HandleGetAction(consistency int, key string, client *rpc.Client, idMessageClient int, idMessage int) error {
 	if consistency == 0 {
-		err := getElementFromDsCausal(key, client)
+		err := getElementFromDsCausal(key, client, idMessageClient, idMessage)
 		if err != nil {
 			return fmt.Errorf("error getting element to datastore: %w", err)
 		}
 	} else {
-		err := getElementFromDsSequential(key, client)
+		err := getElementFromDsSequential(key, client, idMessageClient, idMessage)
 		if err != nil {
 			return fmt.Errorf("error getting element to datastore: %w", err)
 		}
@@ -75,18 +75,18 @@ func HandleGetAction(consistency int, key string, client *rpc.Client) error {
 
 //Azione di put con consistenza sequenziale
 
-func addElementToDsSequential(key string, value string, config Config, serverNumber int, client *rpc.Client) error {
+func addElementToDsSequential(key string, value string, config Config, serverNumber int, client *rpc.Client, idMessageClient int, idMessage int) error {
 
 	var n1, n2 string
 	n1 = key
 	n2 = value
 
 	log.Printf("Adding element with Key: %s, and Value: %s contacting %s", n1, n2, config.Address[serverNumber].Addr)
-
-	args := common.MessageSequential{Key: n1, Value: n2, OperationType: 1}
+	message := common.Message{Key: n1, Value: n2, OperationType: 1, IdMessageClient: idMessageClient, IdMessage: idMessage}
+	args := common.MessageSequential{MessageBase: message}
 	log.Printf(call)
 
-	result := common.ResponseSequential{Done: false}
+	result := common.Response{Done: false}
 
 	err := client.Call("ServerSequential.SequentialSendElement", args, &result) //Calling the SequentialSendElement routine
 	if err != nil {
@@ -94,27 +94,27 @@ func addElementToDsSequential(key string, value string, config Config, serverNum
 	}
 
 	if result.Done {
-		log.Println("Successful operation for message with key: ", args.Key, "and value: ", args.Key)
+		log.Println("Successful operation for message with key: ", args.MessageBase.Key, "and value: ", args.MessageBase.Key)
 	} else {
-		log.Println("Failed operation for message with key: ", args.Key, "and value: ", args.Key)
+		log.Println("Failed operation for message with key: ", args.MessageBase.Key, "and value: ", args.MessageBase.Key)
 	}
 	return nil
 }
 
 //Funzione per aggiungere un elemento con consistenza causale
 
-func addElementToDsCausal(key string, value string, config Config, serverNumber int, client *rpc.Client) error {
+func addElementToDsCausal(key string, value string, config Config, serverNumber int, client *rpc.Client, idMessageClient int, idMessage int) error {
 
 	var n1, n2 string
 	n1 = key
 	n2 = value
 
 	log.Printf("Adding element with Key: %s, and Value: %s contacting %s", n1, n2, config.Address[serverNumber].Addr)
-
-	args := common.MessageCausal{Key: n1, Value: n2, VectorTimestamp: make([]int, len(config.Address)), OperationType: 1}
+	message := common.Message{Key: n1, Value: n2, OperationType: 1, IdMessageClient: idMessageClient, IdMessage: idMessage}
+	args := common.MessageCausal{MessageBase: message, VectorTimestamp: make([]int, len(config.Address))}
 	log.Printf(call)
 
-	result := common.ResponseCausal{Done: false}
+	result := common.Response{Done: false}
 
 	err := client.Call("ServerCausal.CausalSendElement", args, &result) //Calling the CausalSendElement routine
 	if err != nil {
@@ -122,9 +122,9 @@ func addElementToDsCausal(key string, value string, config Config, serverNumber 
 	}
 
 	if result.Done {
-		log.Println("Successful operation for message with key: ", args.Key, "and value: ", args.Key)
+		log.Println("Successful operation for message with key: ", args.MessageBase.Key, "and value: ", args.MessageBase.Value)
 	} else {
-		log.Println("Failed operation for message with key: ", args.Key, "and value: ", args.Key)
+		log.Println("Failed operation for message with key: ", args.MessageBase.Key, "and value: ", args.MessageBase.Value)
 	}
 
 	return nil
@@ -132,13 +132,13 @@ func addElementToDsCausal(key string, value string, config Config, serverNumber 
 
 //Funzione per aggiungere un elemento con consistenza sequenziale
 
-func deleteElementFromDsSequential(key string, config Config, serverNumber int, client *rpc.Client) error {
+func deleteElementFromDsSequential(key string, config Config, serverNumber int, client *rpc.Client, idMessageClient int, idMessage int) error {
 	n1 := key
 
 	log.Printf("Get element with Key: %s contacting %s", n1, config.Address[serverNumber].Addr)
-
-	args := common.MessageSequential{Key: n1, OperationType: 2}
-	result := common.ResponseSequential{Done: false}
+	message := common.Message{Key: n1, OperationType: 1, IdMessageClient: idMessageClient, IdMessage: idMessage}
+	args := common.MessageSequential{MessageBase: message}
+	result := common.Response{Done: false}
 
 	log.Printf(call)
 
@@ -149,22 +149,22 @@ func deleteElementFromDsSequential(key string, config Config, serverNumber int, 
 	}
 
 	if result.Done {
-		log.Println("Successful operation for message with key: ", args.Key)
+		log.Println("Successful operation for message with key: ", args.MessageBase.Key)
 	} else {
-		log.Println("Failed operation for message with key: ", args.Key)
+		log.Println("Failed operation for message with key: ", args.MessageBase.Key)
 	}
 	return nil
 }
 
 //Funzione per eliminare un elemento con consistenza causale
 
-func deleteElementFromDsCausal(key string, config Config, serverNumber int, client *rpc.Client) error {
+func deleteElementFromDsCausal(key string, config Config, serverNumber int, client *rpc.Client, idMessageClient int, idMessage int) error {
 	n1 := key
 
 	log.Printf("Get element with Key: %s contacting %s\n", n1, config.Address[serverNumber].Addr)
-
-	args := common.MessageCausal{Key: n1, VectorTimestamp: make([]int, len(config.Address)), OperationType: 2}
-	result := common.ResponseCausal{Done: false}
+	message := common.Message{Key: n1, OperationType: 2, IdMessageClient: idMessageClient, IdMessage: idMessage}
+	args := common.MessageCausal{MessageBase: message, VectorTimestamp: make([]int, len(config.Address))}
+	result := common.Response{Done: false}
 
 	err := client.Call("ServerCausal.CausalSendElement", args, &result)
 
@@ -173,20 +173,25 @@ func deleteElementFromDsCausal(key string, config Config, serverNumber int, clie
 	}
 
 	if result.Done {
-		log.Println("Successful operation for message with key: ", args.Key)
+		log.Println("Successful operation for message with key: ", args.MessageBase.Key)
 	} else {
-		log.Println("Failed operation for message with key: ", args.Key)
+		log.Println("Failed operation for message with key: ", args.MessageBase.Key)
 	}
 	return nil
 }
 
 //Funzione per recuperare un elemento in versione causale
 
-func getElementFromDsCausal(key string, client *rpc.Client) error {
+func getElementFromDsCausal(key string, client *rpc.Client, idMessageClient int, idMessage int) error {
 
 	log.Printf(call)
 	var returnValue string
-	err := client.Call("ServerCausal.CausalGetElement", key, &returnValue)
+	args := common.Message{
+		Key:             key,
+		IdMessageClient: idMessageClient,
+		IdMessage:       idMessage,
+	}
+	err := client.Call("ServerCausal.CausalGetElement", args, &returnValue)
 
 	fmt.Println("Get element with Key: ", key)
 	fmt.Println("Value: ", returnValue)
@@ -196,7 +201,7 @@ func getElementFromDsCausal(key string, client *rpc.Client) error {
 	}
 
 	if returnValue != "" {
-		log.Printf("Element with Key %s, have value: %s", key, returnValue)
+		log.Printf("Element with Key %s, have value: %s", args.Key, returnValue)
 	} else {
 		log.Printf("No element with Key: %s\n", key)
 	}
@@ -205,11 +210,16 @@ func getElementFromDsCausal(key string, client *rpc.Client) error {
 
 //Funzione per recuperare un elemento in versione sequenziale
 
-func getElementFromDsSequential(key string, client *rpc.Client) error {
+func getElementFromDsSequential(key string, client *rpc.Client, idMessageClient int, idMessage int) error {
 
 	log.Printf(call)
 	var returnValue string
-	err := client.Call("ServerSequential.SequentialGetElement", key, &returnValue)
+	args := common.Message{
+		Key:             key,
+		IdMessageClient: idMessageClient,
+		IdMessage:       idMessage,
+	}
+	err := client.Call("ServerSequential.SequentialGetElement", args, &returnValue)
 	fmt.Println("Get element with Key: ", key)
 	fmt.Println("Value: ", returnValue)
 
@@ -218,9 +228,9 @@ func getElementFromDsSequential(key string, client *rpc.Client) error {
 	}
 
 	if returnValue != "" {
-		log.Printf("Element with Key %s, have value: %s", key, returnValue)
+		log.Printf("Element with Key %s, have value: %s", args.Key, returnValue)
 	} else {
-		log.Printf("No element with Key: %s\n", key)
+		log.Printf("No element with Key: %s\n", args.Key)
 	}
 	return nil
 }

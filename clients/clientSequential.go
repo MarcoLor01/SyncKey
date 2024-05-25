@@ -13,42 +13,42 @@ func funcServer1(wg *sync.WaitGroup, client *rpc.Client, config clientCommon.Con
 	//Write W(x)a su processo 0
 	fmt.Printf("Write W(x)a su processo 0\n")
 
-	err := clientCommon.HandlePutAction(consistency, "1", "c", config, 0, client)
+	err := clientCommon.HandlePutAction(consistency, "1", "c", config, 0, client, 1, 1)
 	if err != nil {
 		return
 	}
 
-	err = clientCommon.HandlePutAction(consistency, "4", "df", config, 0, client)
+	err = clientCommon.HandlePutAction(consistency, "4", "df", config, 0, client, 2, 1)
 	if err != nil {
 		return
 	}
 
-	err = clientCommon.HandlePutAction(consistency, "7", "df", config, 0, client)
+	err = clientCommon.HandlePutAction(consistency, "7", "df", config, 0, client, 3, 1)
 }
 
 func funcServer2(wg *sync.WaitGroup, client *rpc.Client, config clientCommon.Config, consistency int) {
 	defer wg.Done()
 	//W(x)b su processo 1
 	fmt.Printf("Write W(x)b su processo 1\n")
-	err := clientCommon.HandlePutAction(consistency, "2", "b", config, 1, client)
+	err := clientCommon.HandlePutAction(consistency, "2", "b", config, 1, client, 1, 2)
 	if err != nil {
 		return
 	}
 
 	time.Sleep(4 * time.Second)
-	err = clientCommon.HandlePutAction(consistency, "5", "sa", config, 0, client)
+	err = clientCommon.HandlePutAction(consistency, "5", "sa", config, 0, client, 2, 2)
 }
 
 func funcServer3(wg *sync.WaitGroup, client *rpc.Client, config clientCommon.Config, consistency int) {
 	defer wg.Done()
 	//R(x) su processo 2 = b //R(x) su processo 3 = b
 	fmt.Printf("R(x) su processo 2 = b //R(x) su processo 3 = b\n")
-	err := clientCommon.HandlePutAction(consistency, "3", "aaa", config, 1, client)
+	err := clientCommon.HandlePutAction(consistency, "3", "aaa", config, 1, client, 1, 3)
 	if err != nil {
 		return
 	}
-	err = clientCommon.HandlePutAction(consistency, "6", "df", config, 0, client)
-	err = clientCommon.HandlePutAction(consistency, "8", "df", config, 0, client)
+	err = clientCommon.HandlePutAction(consistency, "6", "df", config, 0, client, 2, 3)
+	err = clientCommon.HandlePutAction(consistency, "8", "df", config, 0, client, 3, 3)
 }
 
 func TestFirst() {

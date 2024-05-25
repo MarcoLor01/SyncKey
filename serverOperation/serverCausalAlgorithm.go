@@ -3,18 +3,31 @@ package serverOperation
 import (
 	"fmt"
 	"golang.org/x/sync/errgroup"
+	"log"
 	"main/common"
 	"net/rpc"
 	"time"
 )
 
-func (s *ServerCausal) CausalSendElement(message common.MessageCausal, reply *common.ResponseCausal) error {
+func (s *ServerCausal) CausalSendElement(message common.MessageCausal, reply *common.Response) error {
 	//Incremento il mio timestamp essendo il server mittente, e preparo il messaggio all'invio
 	s.incrementMyTimestamp()
-	//è inizializzata => lanciare goroutine che controlla se posso inviarlo
+	responseProcess := s.BaseServer.createResponse()
+
+	errChan := make(chan error, 1)
+	go func() {
+		err := s.BaseServer.canProcess(&message.MessageBase, responseProcess)
+		errChan <- err
+	}()
+
+	// Attendere e gestire l'errore dalla goroutine
+	if err := <-errChan; err != nil {
+		return err
+	}
+
 	s.prepareMessage(&message)
 	//Messaggio pronto all'invio, inoltro con un messaggio Multicast a tutti gli altri server
-	response := s.createResponseCausal()
+	response := s.BaseServer.createResponse()
 	err := s.causalSendToOtherServers(message, response)
 	if err != nil {
 		return fmt.Errorf("SequentialSendElement: error sending to other servers: %v", err)
@@ -24,8 +37,8 @@ func (s *ServerCausal) CausalSendElement(message common.MessageCausal, reply *co
 	return nil
 }
 
-func (s *ServerCausal) causalSendToOtherServers(message common.MessageCausal, reply *common.ResponseCausal) error {
-	ch := make(chan common.ResponseCausal, len(addresses.Addresses))
+func (s *ServerCausal) causalSendToOtherServers(message common.MessageCausal, reply *common.Response) error {
+	ch := make(chan common.Response, len(addresses.Addresses))
 
 	//usiamo un errgroup.Group per la gestione degli errori all'interno delle goroutine
 
@@ -52,7 +65,7 @@ func (s *ServerCausal) causalSendToOtherServers(message common.MessageCausal, re
 	return nil
 }
 
-func (s *ServerCausal) causalSendToSingleServer(addr string, message common.MessageCausal, ch chan common.ResponseCausal) error {
+func (s *ServerCausal) causalSendToSingleServer(addr string, message common.MessageCausal, ch chan common.Response) error {
 
 	client, err := rpc.Dial("tcp", addr)
 	if err != nil {
@@ -61,7 +74,7 @@ func (s *ServerCausal) causalSendToSingleServer(addr string, message common.Mess
 
 	defer closeClient(client)
 
-	reply := s.createResponseCausal()
+	reply := s.BaseServer.createResponse()
 	//Delay causale inserito
 	delayInserted := calculateDelay()
 	time.Sleep(time.Duration(delayInserted) * time.Millisecond)
@@ -75,18 +88,18 @@ func (s *ServerCausal) causalSendToSingleServer(addr string, message common.Mess
 	return nil
 }
 
-func (s *ServerCausal) SaveMessageQueue(message common.MessageCausal, reply *common.ResponseSequential) error {
+func (s *ServerCausal) SaveMessageQueue(message common.MessageCausal, reply *common.Response) error {
 
 	//Aggiungo il messaggio in coda
 	s.addToQueueCausal(&message)
 
 	//Controllo se posso consegnare, e rimango bloccato finché non si verificano le giuste condizioni
-	response := s.createResponseCausal()
+	response := s.BaseServer.createResponse()
 	s.checkIfDeliverable(&message, response)
 	if response.Done == false {
 		return fmt.Errorf("error checking condition")
 	}
-	responseToSend := s.createResponseCausal()
+	responseToSend := s.BaseServer.createResponse()
 
 	//Ora posso andare a inserire in coda il messaggio e conseguentemente aggiornare il mio timestamp
 	err := s.sendMessageToApplication(message, responseToSend)
@@ -103,7 +116,7 @@ func (s *ServerCausal) addToQueueCausal(message *common.MessageCausal) {
 	s.myQueueMutex.Unlock()
 }
 
-func (s *ServerCausal) checkIfDeliverable(message *common.MessageCausal, reply *common.ResponseCausal) {
+func (s *ServerCausal) checkIfDeliverable(message *common.MessageCausal, reply *common.Response) {
 	mod := false
 
 	for {
@@ -111,7 +124,7 @@ func (s *ServerCausal) checkIfDeliverable(message *common.MessageCausal, reply *
 		mod = s.checkCondition(message, mod)
 
 		//Se la prima condizione è verificata, controllo la seconda, ovvero che t(m)[k] <= V_j[k] Per ogni k != i
-		response := s.createResponseCausal()
+		response := s.BaseServer.createResponse()
 		if mod {
 			for index, ts := range message.VectorTimestamp {
 				if index == message.ServerId-1 {
@@ -132,17 +145,17 @@ func (s *ServerCausal) checkIfDeliverable(message *common.MessageCausal, reply *
 	}
 }
 
-func (s *ServerCausal) sendMessageToApplication(message common.MessageCausal, reply *common.ResponseCausal) error {
+func (s *ServerCausal) sendMessageToApplication(message common.MessageCausal, reply *common.Response) error {
 	//Incremento il mio timestamp
 	s.incrementClockReceive(&message)
 
-	if message.OperationType == 1 {
+	if message.MessageBase.OperationType == 1 {
 		err := s.removeFromQueueCausal(message)
 		if err != nil {
 			return err
 		}
 		s.printDataStore()
-	} else if message.OperationType == 2 {
+	} else if message.MessageBase.OperationType == 2 {
 		err := s.removeFromQueueDeletingCausal(message)
 		if err != nil {
 			return err
@@ -152,5 +165,31 @@ func (s *ServerCausal) sendMessageToApplication(message common.MessageCausal, re
 		return fmt.Errorf("error checking message operation type")
 	}
 	reply.Done = true
+	return nil
+}
+
+func (s *ServerCausal) CausalGetElement(Message common.Message, reply *string) error {
+	responseProcess := s.BaseServer.createResponse()
+	errChan := make(chan error, 1)
+	go func() {
+		err := s.BaseServer.canProcess(&Message, responseProcess)
+		errChan <- err
+	}()
+
+	// Attendere e gestire l'errore dalla goroutine
+	if err := <-errChan; err != nil {
+		return err
+	}
+	s.myDatastoreMutex.Lock()
+	if value, ok := s.DataStore[Message.Key]; ok {
+		*reply = value
+		fmt.Printf(value)
+		log.Println("ESEGUITA DA SERVER: ", MyId, "azione di get per messaggio con key: ", Message.Key, " e value: ", value)
+		s.myDatastoreMutex.Unlock()
+		return nil
+	} else {
+		log.Println("NON ESEGUITA DA SERVER: ", MyId, "azione di get per messaggio con key: ", Message.Key, " e value: ", value)
+		s.myDatastoreMutex.Unlock()
+	}
 	return nil
 }

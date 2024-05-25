@@ -36,8 +36,8 @@ func main() {
 	if err != nil {
 		return
 	}
-	serverOperation.InitializeAndRegisterServerSequential(server)
-	serverOperation.InitializeAndRegisterServerCausal(server)
+	serverOperation.InitializeAndRegisterServerSequential(server, 3)
+	serverOperation.InitializeAndRegisterServerCausal(server, 3)
 	fmt.Println("Server registered successfully")
 	serverOperation.MyId = 3 //Imposto il mio Id che deve essere univoco per ogni server
 

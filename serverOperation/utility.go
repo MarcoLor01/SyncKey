@@ -41,7 +41,7 @@ func (s *ServerSequential) orderQueue() {
 		if s.LocalQueue[i].ScalarTimestamp != s.LocalQueue[j].ScalarTimestamp {
 			return s.LocalQueue[i].ScalarTimestamp < s.LocalQueue[j].ScalarTimestamp
 		}
-		return s.LocalQueue[i].ServerId < s.LocalQueue[j].ServerId
+		return s.LocalQueue[i].MessageBase.ServerId < s.LocalQueue[j].MessageBase.ServerId
 	})
 }
 
@@ -128,9 +128,27 @@ func calculateDelay() int {
 	return delay
 }
 
-func (s *ServerBase) InitializeMessageClient() {
+func (s *ServerBase) InitializeMessageClient(clientId int) {
 	s.myClientMessage = common.ClientMessage{
-		ServerId:            -1, // Inserisci l'ID del server appropriato qui
-		ActualNumberMessage: -1, // Inserisci il numero del messaggio appropriato qui
+		ClientId:            clientId, // Inserisci l'ID del server appropriato qui
+		ActualNumberMessage: 1,        // Inserisci il numero del messaggio appropriato qui
+	}
+}
+
+func (s *ServerBase) canProcess(message *common.Message, reply *common.Response) error {
+	for {
+		if message.IdMessageClient == s.myClientMessage.ClientId {
+			fmt.Println("Mi aspettavo numero: ", s.myClientMessage.ActualNumberMessage)
+			fmt.Println("E ho ricevuto: ", message.IdMessage)
+			if message.IdMessage == s.myClientMessage.ActualNumberMessage {
+				reply.Done = true
+				s.myClientMessage.ActualNumberMessage++
+				return nil
+			} else {
+				time.Sleep(1 * time.Second)
+			}
+		} else {
+			return fmt.Errorf("I can't handle message from this Client")
+		}
 	}
 }

@@ -37,9 +37,9 @@ func main() {
 		log.Fatal(err)
 	}
 	//Inizializzo il server che esegue con consistenza sequenziale
-	serverOperation.InitializeAndRegisterServerSequential(server)
+	serverOperation.InitializeAndRegisterServerSequential(server, 1)
 	//Inizializzo il server che esegue con consistenza causale
-	serverOperation.InitializeAndRegisterServerCausal(server)
+	serverOperation.InitializeAndRegisterServerCausal(server, 1)
 	fmt.Println("Server registered successfully")
 	serverOperation.MyId = 1 //Imposto il mio Id che deve essere univoco per ogni server
 

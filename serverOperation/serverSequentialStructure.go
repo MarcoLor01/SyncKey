@@ -36,17 +36,13 @@ func InitializeServerSequential() *ServerSequential {
 	return myServer
 }
 
-func InitializeAndRegisterServerSequential(server *rpc.Server) {
+func InitializeAndRegisterServerSequential(server *rpc.Server, clientId int) {
 	myServer := InitializeServerSequential()
 	err := server.Register(myServer)
 	if err != nil {
 		log.Fatal("Format of service SyncKey is not correct: ", err)
 	}
-	myServer.BaseServer.InitializeMessageClient()
-}
-
-func (s *ServerSequential) createResponseSequential() *common.ResponseSequential {
-	return &common.ResponseSequential{Done: false}
+	myServer.BaseServer.InitializeMessageClient(clientId)
 }
 
 //Funzione per creazione di un messaggio di ACK
@@ -62,8 +58,8 @@ func (s *ServerSequential) createAckMessage(Message common.MessageSequential) Ac
 
 func (s *ServerSequential) sequentialDeleteElementDatastore(message common.MessageSequential) {
 	s.myDatastoreMutex.Lock()
-	log.Printf("ESEGUITA DA SERVER %d azione di delete, key: %s\n", MyId, message.Key)
-	delete(s.DataStore, message.Key)
+	log.Printf("ESEGUITA DA SERVER %d azione di delete, key: %s\n", MyId, message.MessageBase.Key)
+	delete(s.DataStore, message.MessageBase.Key)
 	s.printDataStore()
 	s.myDatastoreMutex.Unlock()
 }
@@ -72,15 +68,15 @@ func (s *ServerSequential) sequentialDeleteElementDatastore(message common.Messa
 
 func (s *ServerSequential) sequentialAddElementDatastore(message common.MessageSequential) {
 	s.myDatastoreMutex.Lock()
-	log.Printf("ESEGUITA DA SERVER %d azione di put, key: %s, value: %s\n", MyId, message.Key, message.Value)
-	s.DataStore[message.Key] = message.Value
+	log.Printf("ESEGUITA DA SERVER %d azione di put, key: %s, value: %s\n", MyId, message.MessageBase.Key, message.MessageBase.Value)
+	s.DataStore[message.MessageBase.Key] = message.MessageBase.Value
 	s.printDataStore()
 	s.myDatastoreMutex.Unlock()
 }
 
 //Funzione che esegue ulteriori controlli ed elimina il primo termine dalla coda locale del server
 
-func (s *ServerSequential) updateQueue(message common.MessageSequential, reply *common.ResponseSequential) {
+func (s *ServerSequential) updateQueue(message common.MessageSequential, reply *common.Response) {
 	s.myQueueMutex.Lock()
 	if len(s.LocalQueue) != 0 && s.LocalQueue[0].IdUnique == message.IdUnique {
 		s.LocalQueue = append(s.LocalQueue[:0], s.LocalQueue[1:]...)
@@ -95,8 +91,8 @@ func (s *ServerSequential) updateQueue(message common.MessageSequential, reply *
 
 func (s *ServerSequential) removeFromQueueDeletingSequential(message common.MessageSequential) {
 	for i, msg := range s.LocalQueue {
-		if message.Key == msg.Key && message.Value == msg.Value && message.ScalarTimestamp == msg.ScalarTimestamp {
-			delete(s.DataStore, msg.Key)
+		if message.MessageBase.Key == msg.MessageBase.Key && message.MessageBase.Value == msg.MessageBase.Value && message.ScalarTimestamp == msg.ScalarTimestamp {
+			delete(s.DataStore, msg.MessageBase.Key)
 			s.LocalQueue = append(s.LocalQueue[:i], s.LocalQueue[i+1:]...)
 			break
 		}
@@ -107,8 +103,8 @@ func (s *ServerSequential) removeFromQueueDeletingSequential(message common.Mess
 
 func (s *ServerSequential) removeFromQueueSequential(message common.MessageSequential) {
 	for i, msg := range s.LocalQueue {
-		if message.Key == msg.Key && message.Value == msg.Value && message.ScalarTimestamp == msg.ScalarTimestamp {
-			s.DataStore[msg.Key] = msg.Value
+		if message.MessageBase.Key == msg.MessageBase.Key && message.MessageBase.Value == msg.MessageBase.Value && message.ScalarTimestamp == msg.ScalarTimestamp {
+			s.DataStore[msg.MessageBase.Key] = msg.MessageBase.Value
 			s.LocalQueue = append(s.LocalQueue[:i], s.LocalQueue[i+1:]...)
 			break
 		}
@@ -120,7 +116,7 @@ func (s *ServerSequential) addToQueueSequential(message common.MessageSequential
 	defer s.myQueueMutex.Unlock()
 
 	for i, element := range s.LocalQueue {
-		if message.Key == element.Key {
+		if message.MessageBase.Key == element.MessageBase.Key {
 			s.LocalQueue[i] = &message
 			s.orderQueue()
 			return
