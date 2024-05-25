@@ -16,6 +16,17 @@ func (s *ServerSequential) SequentialSendElement(message common.MessageSequentia
 	//Aggiorno il mio clock scalare e lo allego al messaggio da inviare a tutti i server
 	//Genero inoltre un ID univoco e lo allego al messaggio insieme al mio ID, in questo modo tutti sapranno in ogni momento chi ha generato il messaggio
 	s.updateClock()
+	responseProcess := s.BaseServer.createResponse()
+	errChan := make(chan error, 1)
+	go func() {
+		err := s.BaseServer.canProcess(&message.MessageBase, responseProcess)
+		errChan <- err
+	}()
+
+	// Attendere e gestire l'errore dalla goroutine
+	if err := <-errChan; err != nil {
+		return err
+	}
 	s.prepareMessage(&message)
 
 	reply := s.BaseServer.createResponse()
@@ -271,15 +282,27 @@ func (s *ServerSequential) updateDataStore(message common.MessageSequential, rep
 	}
 }
 
-func (s *ServerSequential) SequentialGetElement(args common.Message, reply *string) error {
+func (s *ServerSequential) SequentialGetElement(message common.Message, reply *string) error {
+	responseProcess := s.BaseServer.createResponse()
+	errChan := make(chan error, 1)
+	go func() {
+		err := s.BaseServer.canProcess(&message, responseProcess)
+		errChan <- err
+	}()
+
+	// Attendere e gestire l'errore dalla goroutine
+	if err := <-errChan; err != nil {
+		return err
+	}
+
 	s.myDatastoreMutex.Lock()
-	if value, ok := s.DataStore[args.Key]; ok {
+	if value, ok := s.DataStore[message.Key]; ok {
 		*reply = value
-		log.Println("ESEGUITA DA SERVER: ", MyId, "azione di get per messaggio con key: ", args.Key, " e value: ", value)
+		log.Println("ESEGUITA DA SERVER: ", MyId, "azione di get per messaggio con key: ", message.Key, " e value: ", value)
 		s.myDatastoreMutex.Unlock()
 		return nil
 	} else {
-		log.Println("NON ESEGUITA DA SERVER: ", MyId, "azione di get per messaggio con key: ", args.Key, " e value: ", value)
+		log.Println("NON ESEGUITA DA SERVER: ", MyId, "azione di get per messaggio con key: ", message.Key, " e value: ", value)
 		s.myDatastoreMutex.Unlock()
 	}
 	return nil

@@ -180,6 +180,7 @@ func (s *ServerCausal) CausalGetElement(Message common.Message, reply *string) e
 	if err := <-errChan; err != nil {
 		return err
 	}
+
 	s.myDatastoreMutex.Lock()
 	if value, ok := s.DataStore[Message.Key]; ok {
 		*reply = value
