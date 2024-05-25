@@ -4,6 +4,7 @@ import (
 	"log"
 	"main/common"
 	"net/rpc"
+	"sort"
 	"sync"
 )
 
@@ -13,21 +14,21 @@ type AckMessage struct {
 }
 
 type ServerSequential struct {
-	DataStore        map[string]string           //Il mio Datastore
-	myDatastoreMutex sync.Mutex                  //Mutex per l'accesso al Datastore
-	LocalQueue       []*common.MessageSequential //Coda locale
-	myQueueMutex     sync.Mutex                  //Mutex per l'accesso alla coda
-	MyScalarClock    int                         //Clock scalare
-	myClockMutex     sync.Mutex                  //Mutex per l'accesso al clock scalare
-	BaseServer       ServerBase                  //Cose in comune tra server causale e sequenziale
+	LocalQueue    []*common.MessageSequential //Coda locale
+	myQueueMutex  sync.Mutex                  //Mutex per l'accesso alla coda
+	MyScalarClock int                         //Clock scalare
+	myClockMutex  sync.Mutex                  //Mutex per l'accesso al clock scalare
+	BaseServer    ServerBase                  //Cose in comune tra server causale e sequenziale
 }
 
 func CreateNewSequentialDataStore() *ServerSequential {
 
 	return &ServerSequential{
 		LocalQueue:    make([]*common.MessageSequential, 0),
-		DataStore:     make(map[string]string),
 		MyScalarClock: 0, //Initial Clock
+		BaseServer: ServerBase{
+			DataStore: make(map[string]string),
+		},
 	}
 } //Inizializzazione di un server con consistenza sequenziale
 
@@ -57,21 +58,21 @@ func (s *ServerSequential) createAckMessage(Message common.MessageSequential) Ac
 //Funzione per la rimozione di un messaggio dal datastore
 
 func (s *ServerSequential) sequentialDeleteElementDatastore(message common.MessageSequential) {
-	s.myDatastoreMutex.Lock()
+	s.BaseServer.myDatastoreMutex.Lock()
 	log.Printf("ESEGUITA DA SERVER %d azione di delete, key: %s\n", MyId, message.MessageBase.Key)
-	delete(s.DataStore, message.MessageBase.Key)
-	s.printDataStore()
-	s.myDatastoreMutex.Unlock()
+	delete(s.BaseServer.DataStore, message.MessageBase.Key)
+	s.BaseServer.printDataStore()
+	s.BaseServer.myDatastoreMutex.Unlock()
 }
 
 //Funzione per aggiungere un nuovo messaggio al datastore
 
 func (s *ServerSequential) sequentialAddElementDatastore(message common.MessageSequential) {
-	s.myDatastoreMutex.Lock()
+	s.BaseServer.myDatastoreMutex.Lock()
 	log.Printf("ESEGUITA DA SERVER %d azione di put, key: %s, value: %s\n", MyId, message.MessageBase.Key, message.MessageBase.Value)
-	s.DataStore[message.MessageBase.Key] = message.MessageBase.Value
-	s.printDataStore()
-	s.myDatastoreMutex.Unlock()
+	s.BaseServer.DataStore[message.MessageBase.Key] = message.MessageBase.Value
+	s.BaseServer.printDataStore()
+	s.BaseServer.myDatastoreMutex.Unlock()
 }
 
 //Funzione che esegue ulteriori controlli ed elimina il primo termine dalla coda locale del server
@@ -92,7 +93,7 @@ func (s *ServerSequential) updateQueue(message common.MessageSequential, reply *
 func (s *ServerSequential) removeFromQueueDeletingSequential(message common.MessageSequential) {
 	for i, msg := range s.LocalQueue {
 		if message.MessageBase.Key == msg.MessageBase.Key && message.MessageBase.Value == msg.MessageBase.Value && message.ScalarTimestamp == msg.ScalarTimestamp {
-			delete(s.DataStore, msg.MessageBase.Key)
+			delete(s.BaseServer.DataStore, msg.MessageBase.Key)
 			s.LocalQueue = append(s.LocalQueue[:i], s.LocalQueue[i+1:]...)
 			break
 		}
@@ -104,7 +105,7 @@ func (s *ServerSequential) removeFromQueueDeletingSequential(message common.Mess
 func (s *ServerSequential) removeFromQueueSequential(message common.MessageSequential) {
 	for i, msg := range s.LocalQueue {
 		if message.MessageBase.Key == msg.MessageBase.Key && message.MessageBase.Value == msg.MessageBase.Value && message.ScalarTimestamp == msg.ScalarTimestamp {
-			s.DataStore[msg.MessageBase.Key] = msg.MessageBase.Value
+			s.BaseServer.DataStore[msg.MessageBase.Key] = msg.MessageBase.Value
 			s.LocalQueue = append(s.LocalQueue[:i], s.LocalQueue[i+1:]...)
 			break
 		}
@@ -125,4 +126,18 @@ func (s *ServerSequential) addToQueueSequential(message common.MessageSequential
 
 	s.LocalQueue = append(s.LocalQueue, &message)
 	s.orderQueue()
+}
+
+//Funzione per l'aggiunta in coda dei messaggi, i messaggi vengono ordinati in base al timestamp
+//scalare, lo usiamo per l'implementazione della consistenza sequenziale
+//In caso di timestamp scalare uguale, viene considerato il timestamp di inserimento in coda,
+//Quindi i messaggi aggiunti prima saranno considerati prima all'interno della coda
+
+func (s *ServerSequential) orderQueue() {
+	sort.Slice(s.LocalQueue, func(i, j int) bool {
+		if s.LocalQueue[i].ScalarTimestamp != s.LocalQueue[j].ScalarTimestamp {
+			return s.LocalQueue[i].ScalarTimestamp < s.LocalQueue[j].ScalarTimestamp
+		}
+		return s.LocalQueue[i].MessageBase.ServerId < s.LocalQueue[j].MessageBase.ServerId
+	})
 }

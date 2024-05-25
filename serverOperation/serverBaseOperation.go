@@ -9,43 +9,29 @@ import (
 	"math/rand"
 	"net/rpc"
 	"os"
-	"sort"
 	"sync"
 	"time"
 )
 
 var MyId int //ID del server
 var addresses ServerInformation
+var serverReplicas = len(addresses.Addresses)
 
 type ServerInformation struct {
 	Addresses []ServerAddress `json:"address"`
 }
 
 type ServerBase struct {
-	myClientMessage common.ClientMessage //Messaggi del client
-	myClientMutex   sync.Mutex           //Mutex per la sincronizzazione dell'accesso ai messaggi del client
+	myClientMessage  common.ClientMessage //Messaggi del client
+	myClientMutex    sync.Mutex           //Mutex per la sincronizzazione dell'accesso ai messaggi del client
+	DataStore        map[string]string    //Il mio datastore
+	myDatastoreMutex sync.Mutex           //Mutex per l'accesso al Datastore
 }
 
 type ServerAddress struct {
 	Addr string `json:"addr"`
 	Id   int    `json:"id"`
 } //Struttura che contiene l'indirizzo e l'id di un server
-
-//Funzione per l'aggiunta in coda dei messaggi, i messaggi vengono ordinati in base al timestamp
-//scalare, lo usiamo per l'implementazione della consistenza sequenziale
-//In caso di timestamp scalare uguale, viene considerato il timestamp di inserimento in coda,
-//Quindi i messaggi aggiunti prima saranno considerati prima all'interno della coda
-
-func (s *ServerSequential) orderQueue() {
-	sort.Slice(s.LocalQueue, func(i, j int) bool {
-		if s.LocalQueue[i].ScalarTimestamp != s.LocalQueue[j].ScalarTimestamp {
-			return s.LocalQueue[i].ScalarTimestamp < s.LocalQueue[j].ScalarTimestamp
-		}
-		return s.LocalQueue[i].MessageBase.ServerId < s.LocalQueue[j].MessageBase.ServerId
-	})
-}
-
-//Funzione per aggiungere il messaggio alla coda nel caso della consistenza causale
 
 //Inizializziamo la lista dei server, funzione chiamata durante la configurazione del server
 
@@ -79,17 +65,8 @@ func InitializeServerList() error {
 //La prima per la consistenza causale
 //La seconda per la consistenza sequenziale
 
-func (s *ServerCausal) printDataStore() {
+func (s *ServerBase) printDataStore() {
 	time.Sleep(3 * time.Millisecond)
-	fmt.Printf("\n\n---------------DATASTORE---------------\n")
-	for key, value := range s.DataStore {
-		fmt.Printf("Key: %s, Value: %s\n", key, value)
-	}
-	fmt.Printf("\n---------------------------------------\n")
-}
-
-func (s *ServerSequential) printDataStore() {
-
 	fmt.Printf("\n\n---------------DATASTORE---------------\n")
 	for key, value := range s.DataStore {
 		fmt.Printf("Key: %s, Value: %s\n", key, value)
@@ -135,11 +112,12 @@ func (s *ServerBase) InitializeMessageClient(clientId int) {
 	}
 }
 
+//Controllo se i messaggi arrivano in ordine rispettando l'ordinamento FIFO, in caso contrario, attendo
+//L'arrivo dei/del messaggi/o che lo precede/precedono
+
 func (s *ServerBase) canProcess(message *common.Message, reply *common.Response) error {
 	for {
 		if message.IdMessageClient == s.myClientMessage.ClientId {
-			fmt.Println("Mi aspettavo numero: ", s.myClientMessage.ActualNumberMessage)
-			fmt.Println("E ho ricevuto: ", message.IdMessage)
 			if message.IdMessage == s.myClientMessage.ActualNumberMessage {
 				reply.Done = true
 				s.myClientMessage.ActualNumberMessage++

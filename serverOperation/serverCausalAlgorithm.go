@@ -154,13 +154,15 @@ func (s *ServerCausal) sendMessageToApplication(message common.MessageCausal, re
 		if err != nil {
 			return err
 		}
-		s.printDataStore()
+		log.Println("ESEGUITA DA SERVER: ", MyId, "azione di get per messaggio con key: ", message.MessageBase.Key, " e value: ", message.MessageBase.Value)
+		s.BaseServer.printDataStore()
 	} else if message.MessageBase.OperationType == 2 {
 		err := s.removeFromQueueDeletingCausal(message)
 		if err != nil {
 			return err
 		}
-		s.printDataStore()
+		log.Println("ESEGUITA DA SERVER: ", MyId, "azione di delete per messaggio con key: ", message.MessageBase.Key)
+		s.BaseServer.printDataStore()
 	} else {
 		return fmt.Errorf("error checking message operation type")
 	}
@@ -181,16 +183,16 @@ func (s *ServerCausal) CausalGetElement(Message common.Message, reply *string) e
 		return err
 	}
 
-	s.myDatastoreMutex.Lock()
-	if value, ok := s.DataStore[Message.Key]; ok {
+	s.BaseServer.myDatastoreMutex.Lock()
+	if value, ok := s.BaseServer.DataStore[Message.Key]; ok {
 		*reply = value
 		fmt.Printf(value)
 		log.Println("ESEGUITA DA SERVER: ", MyId, "azione di get per messaggio con key: ", Message.Key, " e value: ", value)
-		s.myDatastoreMutex.Unlock()
+		s.BaseServer.myDatastoreMutex.Unlock()
 		return nil
 	} else {
 		log.Println("NON ESEGUITA DA SERVER: ", MyId, "azione di get per messaggio con key: ", Message.Key, " e value: ", value)
-		s.myDatastoreMutex.Unlock()
+		s.BaseServer.myDatastoreMutex.Unlock()
 	}
 	return nil
 }

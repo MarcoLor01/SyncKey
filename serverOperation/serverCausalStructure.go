@@ -9,13 +9,11 @@ import (
 )
 
 type ServerCausal struct {
-	DataStore        map[string]string       //Il mio datastore
-	myDatastoreMutex sync.Mutex              //Mutex per il mio datastore
-	LocalQueue       []*common.MessageCausal //Coda locale
-	myQueueMutex     sync.Mutex              //Mutex per la sincronizzazione dell'accesso in coda
-	MyClock          []int                   //Il mio vettore di clock vettoriale
-	myClockMutex     sync.Mutex              //Mutex per la sincronizzazione dell'accesso al clock
-	BaseServer       ServerBase              //Cose in comune tra server causale e sequenziale
+	LocalQueue   []*common.MessageCausal //Coda locale
+	myQueueMutex sync.Mutex              //Mutex per la sincronizzazione dell'accesso in coda
+	MyClock      []int                   //Il mio vettore di clock vettoriale
+	myClockMutex sync.Mutex              //Mutex per la sincronizzazione dell'accesso al clock
+	BaseServer   ServerBase              //Cose in comune tra server causale e sequenziale
 }
 
 func CreateNewCausalDataStore() *ServerCausal {
@@ -23,7 +21,9 @@ func CreateNewCausalDataStore() *ServerCausal {
 	return &ServerCausal{
 		LocalQueue: make([]*common.MessageCausal, 0),
 		MyClock:    make([]int, len(addresses.Addresses)), //My vectorial Clock
-		DataStore:  make(map[string]string),
+		BaseServer: ServerBase{
+			DataStore: make(map[string]string),
+		},
 	}
 
 } //Inizializzazione di un server con consistenza causale
@@ -51,7 +51,7 @@ func (s *ServerCausal) removeFromQueueDeletingCausal(message common.MessageCausa
 	var isHere bool
 	for i, msg := range s.LocalQueue {
 		if message.IdUnique == msg.IdUnique {
-			delete(s.DataStore, msg.MessageBase.Key)
+			delete(s.BaseServer.DataStore, msg.MessageBase.Key)
 			s.LocalQueue = append(s.LocalQueue[:i], s.LocalQueue[i+1:]...)
 			isHere = true
 			break
@@ -69,7 +69,7 @@ func (s *ServerCausal) removeFromQueueCausal(message common.MessageCausal) error
 	var isHere bool
 	for i, msg := range s.LocalQueue {
 		if message.IdUnique == msg.IdUnique {
-			s.DataStore[msg.MessageBase.Key] = msg.MessageBase.Value
+			s.BaseServer.DataStore[msg.MessageBase.Key] = msg.MessageBase.Value
 			s.LocalQueue = append(s.LocalQueue[:i], s.LocalQueue[i+1:]...)
 			isHere = true
 			break

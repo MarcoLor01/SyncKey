@@ -73,7 +73,7 @@ func (s *ServerSequential) sendToOtherServers(message common.MessageSequential, 
 		return fmt.Errorf("error sending to other servers: %v", err)
 	}
 
-	for i := 0; i < len(addresses.Addresses); i++ {
+	for i := 0; i < serverReplicas; i++ {
 		reply := <-ch
 		if !reply.Done {
 			return fmt.Errorf("error saving message in the queue")
@@ -209,16 +209,25 @@ func (s *ServerSequential) SequentialSendAck(messageAck AckMessage, result *comm
 
 func (s *ServerSequential) applicationDeliveryCondition(message common.MessageSequential, response *common.Response) error {
 
-	// Controlliamo la prima condizione
 	ch := make(chan common.Response, 1)
-
+	chProcess := make(chan common.Response, 1)
+	// Controlliamo la prima condizione
 	for {
 		s.checkQueue(message, ch)
 		result := <-ch
 		if result.Done {
-			break
+			//Se la prima condizione è valida, valutiamo la seconda
+			s.checkSecondCondition(message, chProcess)
+			responseSecondCondition := <-chProcess
+
+			if responseSecondCondition.Done {
+				break
+			} else {
+				time.Sleep(1 * time.Second)
+			}
+		} else {
+			time.Sleep(1 * time.Second)
 		}
-		time.Sleep(1 * time.Second)
 	}
 	//La condizione è stata soddisfatta
 
@@ -231,6 +240,31 @@ func (s *ServerSequential) applicationDeliveryCondition(message common.MessageSe
 	}
 	response.Done = reply.Done
 	return nil
+}
+
+func (s *ServerSequential) checkSecondCondition(message common.MessageSequential, ch chan common.Response) {
+	s.myQueueMutex.Lock()
+	defer s.myQueueMutex.Unlock()
+	for i := range addresses.Addresses {
+		found := false
+		for _, msg := range s.LocalQueue {
+
+			if msg.MessageBase.ServerId == i+1 {
+				if msg.ScalarTimestamp > message.ScalarTimestamp {
+					found = true
+					break
+				}
+			}
+		}
+
+		if !found {
+			ch <- common.Response{Done: false}
+			return
+		}
+	}
+
+	// If all replicas have at least one message with a greater timestamp, return true
+	ch <- common.Response{Done: true}
 }
 
 func (s *ServerSequential) checkQueue(message common.MessageSequential, ch chan common.Response) {
@@ -274,9 +308,11 @@ func (s *ServerSequential) sendToApplication(message common.MessageSequential, r
 func (s *ServerSequential) updateDataStore(message common.MessageSequential, reply *common.Response) {
 	reply.Done = false
 	if message.MessageBase.OperationType == 1 {
+		log.Println("ESEGUITA DA SERVER: ", MyId, "azione di put per messaggio con key: ", message.MessageBase.Key, " e value: ", message.MessageBase.Value)
 		s.sequentialAddElementDatastore(message)
 		reply.Done = true
 	} else if message.MessageBase.OperationType == 2 {
+		log.Println("ESEGUITA DA SERVER: ", MyId, "azione di delete per messaggio con key: ", message.MessageBase.Key)
 		s.sequentialDeleteElementDatastore(message)
 		reply.Done = true
 	}
@@ -295,15 +331,15 @@ func (s *ServerSequential) SequentialGetElement(message common.Message, reply *s
 		return err
 	}
 
-	s.myDatastoreMutex.Lock()
-	if value, ok := s.DataStore[message.Key]; ok {
+	s.BaseServer.myDatastoreMutex.Lock()
+	if value, ok := s.BaseServer.DataStore[message.Key]; ok {
 		*reply = value
 		log.Println("ESEGUITA DA SERVER: ", MyId, "azione di get per messaggio con key: ", message.Key, " e value: ", value)
-		s.myDatastoreMutex.Unlock()
+		s.BaseServer.myDatastoreMutex.Unlock()
 		return nil
 	} else {
 		log.Println("NON ESEGUITA DA SERVER: ", MyId, "azione di get per messaggio con key: ", message.Key, " e value: ", value)
-		s.myDatastoreMutex.Unlock()
+		s.BaseServer.myDatastoreMutex.Unlock()
 	}
 	return nil
 }
