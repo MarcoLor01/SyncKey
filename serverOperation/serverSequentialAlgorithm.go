@@ -6,18 +6,19 @@ import (
 	"log"
 	"main/common"
 	"net/rpc"
+	"strings"
 	"time"
 )
 
 //Funzione con cui il ricevente del Client informa tutti i server del messaggio ricevuto
 
 func (s *ServerSequential) SequentialSendElement(message common.MessageSequential, response *common.Response) error {
-
 	//Aggiorno il mio clock scalare e lo allego al messaggio da inviare a tutti i server
 	//Genero inoltre un ID univoco e lo allego al messaggio insieme al mio ID, in questo modo tutti sapranno in ogni momento chi ha generato il messaggio
-	s.updateClock()
+	log.Println("MESSAGGIO ARRIVATO DA CLIENT: ", message.MessageBase.Key, "con valore: ", message.MessageBase.Value)
 	responseProcess := s.BaseServer.createResponse()
 	errChan := make(chan error, 1)
+
 	go func() {
 		err := s.BaseServer.canProcess(&message.MessageBase, responseProcess)
 		errChan <- err
@@ -50,7 +51,10 @@ func (s *ServerSequential) updateClock() {
 }
 
 func (s *ServerSequential) prepareMessage(message *common.MessageSequential) {
+	s.updateClock()
+	s.myClockMutex.Lock()
 	message.ScalarTimestamp = s.MyScalarClock
+	s.myClockMutex.Unlock()
 	message.MessageBase.ServerId = MyId
 	message.IdUnique = generateUniqueID()
 }
@@ -103,11 +107,9 @@ func (s *ServerSequential) sequentialSendToSingleServer(addr string, message com
 }
 
 func (s *ServerSequential) SaveMessageQueue(message common.MessageSequential, reply *common.Response) error {
-
-	//Tutti i server aggiornano il clock, tranne colui che l'ha inviato perché l'ha già aggiornato inizialmente
-	//Per poterlo assegnare al messaggio
-	s.incrementClockReceive(message)
-
+	if message.MessageBase.ServerId != MyId {
+		log.Println("MESSAGGIO ARRIVATO DA SERVER: ", message.MessageBase.Key, "con valore: ", message.MessageBase.Value)
+	}
 	//Aggiungo il messaggio in coda
 	s.addToQueueSequential(message)
 
@@ -193,7 +195,6 @@ func (s *ServerSequential) SequentialSendAck(messageAck AckMessage, result *comm
 	for _, msg := range s.LocalQueue {
 		if msg.IdUnique == messageAck.Element.IdUnique {
 			msg.NumberAck++
-			log.Println("Ho ricevuto un ACK da: ", messageAck.MyServerId, "per il messaggio con key: ", messageAck.Element.MessageBase.Key)
 			isInQueue = true
 			break
 		}
@@ -244,7 +245,6 @@ func (s *ServerSequential) checkSecondCondition(message common.MessageSequential
 	for i := range addresses.Addresses {
 		found := false
 		for _, msg := range s.LocalQueue {
-
 			if msg.MessageBase.ServerId == i+1 {
 				if msg.ScalarTimestamp > message.ScalarTimestamp {
 					found = true
@@ -252,12 +252,10 @@ func (s *ServerSequential) checkSecondCondition(message common.MessageSequential
 				}
 			}
 		}
-
 		if !found {
 			return false
 		}
 	}
-
 	return true
 }
 
@@ -294,7 +292,9 @@ func (s *ServerSequential) sendToApplication(message common.MessageSequential, r
 	if replyDataStore.Done == false {
 		return fmt.Errorf("error in updating the dataStore")
 	}
-
+	//Tutti i server aggiornano il clock, tranne colui che l'ha inviato perché l'ha già aggiornato inizialmente
+	//Per poterlo assegnare al messaggio
+	s.incrementClockReceive(message)
 	reply.Done = true
 	return nil
 }
@@ -341,10 +341,11 @@ func (s *ServerSequential) SequentialGetElement(message common.Message, reply *s
 func (s *ServerSequential) incrementClockReceive(message common.MessageSequential) {
 	s.myClockMutex.Lock()
 
+	if message.ScalarTimestamp > s.MyScalarClock {
+		s.MyScalarClock = message.ScalarTimestamp
+	}
+
 	if message.MessageBase.ServerId != MyId {
-		if message.ScalarTimestamp > s.MyScalarClock {
-			s.MyScalarClock = message.ScalarTimestamp
-		}
 		s.MyScalarClock++
 	}
 	s.myClockMutex.Unlock()
@@ -355,11 +356,13 @@ func (s *ServerSequential) lastValue() bool {
 
 	s.myQueueMutex.Lock()
 	defer s.myQueueMutex.Unlock()
-
-	for _, msg := range s.LocalQueue {
-		if msg.MessageBase.Key != "LastValue" {
-			return false
+	if len(s.LocalQueue) <= len(addresses.Addresses) {
+		for _, msg := range s.LocalQueue {
+			if !strings.Contains(msg.MessageBase.Key, "LastValue") {
+				return false
+			}
 		}
+		return true
 	}
-	return true
+	return false
 }

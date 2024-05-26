@@ -116,17 +116,23 @@ func (s *ServerBase) InitializeMessageClient(clientId int) {
 //L'arrivo dei/del messaggi/o che lo precede/precedono
 
 func (s *ServerBase) canProcess(message *common.Message, reply *common.Response) error {
+	s.myClientMutex.Lock()
+	defer s.myClientMutex.Unlock()
+
 	for {
 		if message.IdMessageClient == s.myClientMessage.ClientId {
 			if message.IdMessage == s.myClientMessage.ActualNumberMessage {
 				reply.Done = true
 				s.myClientMessage.ActualNumberMessage++
 				return nil
-			} else {
-				time.Sleep(1 * time.Second)
 			}
 		} else {
 			return fmt.Errorf("I can't handle message from this Client")
 		}
+
+		// Rilascia temporaneamente il lock prima di dormire
+		s.myClientMutex.Unlock()
+		time.Sleep(1 * time.Second)
+		s.myClientMutex.Lock()
 	}
 }
