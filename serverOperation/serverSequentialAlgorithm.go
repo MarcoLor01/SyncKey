@@ -6,7 +6,6 @@ import (
 	"log"
 	"main/common"
 	"net/rpc"
-	"strings"
 	"time"
 )
 
@@ -29,7 +28,6 @@ func (s *ServerSequential) SequentialSendElement(message common.MessageSequentia
 		return err
 	}
 	s.prepareMessage(&message)
-
 	reply := s.BaseServer.createResponse()
 
 	//Vado a informare tutti i server del messaggio che ho ricevuto
@@ -110,6 +108,7 @@ func (s *ServerSequential) SaveMessageQueue(message common.MessageSequential, re
 	if message.MessageBase.ServerId != MyId {
 		log.Println("MESSAGGIO ARRIVATO DA SERVER: ", message.MessageBase.Key, "con valore: ", message.MessageBase.Value)
 	}
+
 	//Aggiungo il messaggio in coda
 	s.addToQueueSequential(message)
 
@@ -123,7 +122,9 @@ func (s *ServerSequential) SaveMessageQueue(message common.MessageSequential, re
 	ackMessage := s.createAckMessage(message)
 	for _, address := range addresses.Addresses {
 		addr := address.Addr
+
 		//Eseguo len(addresses.Addresses) goroutine per informare tutti i server del corretto ricevimento del messaggio
+
 		g.Go(func() error {
 			return s.sendAck(addr, ackMessage, ch)
 		})
@@ -302,37 +303,32 @@ func (s *ServerSequential) sendToApplication(message common.MessageSequential, r
 func (s *ServerSequential) updateDataStore(message common.MessageSequential, reply *common.Response) {
 	reply.Done = false
 	if message.MessageBase.OperationType == 1 {
-		log.Println("ESEGUITA DA SERVER: ", MyId, "azione di put per messaggio con key: ", message.MessageBase.Key, " e value: ", message.MessageBase.Value)
+		log.Println("ESEGUITA, PROVENIENTE DA SERVER: ", message.MessageBase.ServerId, "azione di put per messaggio con key: ", message.MessageBase.Key, " e value: ", message.MessageBase.Value)
 		s.sequentialAddElementDatastore(message)
 		reply.Done = true
 	} else if message.MessageBase.OperationType == 2 {
-		log.Println("ESEGUITA DA SERVER: ", MyId, "azione di delete per messaggio con key: ", message.MessageBase.Key)
+		log.Println("ESEGUITA, PROVENIENTE DA SERVER: ", message.MessageBase.ServerId, "azione di delete per messaggio con key: ", message.MessageBase.Key)
 		s.sequentialDeleteElementDatastore(message)
+		reply.Done = true
+	} else if message.MessageBase.OperationType == 3 {
+		var value string
+		err := s.SequentialGetElement(message.MessageBase, &value)
+		if err != nil {
+			return
+		}
 		reply.Done = true
 	}
 }
 
 func (s *ServerSequential) SequentialGetElement(message common.Message, reply *string) error {
-	responseProcess := s.BaseServer.createResponse()
-	errChan := make(chan error, 1)
-	go func() {
-		err := s.BaseServer.canProcess(&message, responseProcess)
-		errChan <- err
-	}()
-
-	// Attendere e gestire l'errore dalla goroutine
-	if err := <-errChan; err != nil {
-		return err
-	}
-
 	s.BaseServer.myDatastoreMutex.Lock()
 	if value, ok := s.BaseServer.DataStore[message.Key]; ok {
 		*reply = value
-		log.Println("ESEGUITA DA SERVER: ", MyId, "azione di get per messaggio con key: ", message.Key, " e value: ", value)
+		log.Println("ESEGUITA, PROVENIENTE DA SERVER: ", message.ServerId, "azione di get per messaggio con key: ", message.Key, "valore: ", value)
 		s.BaseServer.myDatastoreMutex.Unlock()
 		return nil
 	} else {
-		log.Println("NON ESEGUITA DA SERVER: ", MyId, "azione di get per messaggio con key: ", message.Key, " e value: ", value)
+		log.Println("NON ESEGUITA, PROVENIENTE DA SERVER: ", message.ServerId, "azione di get per messaggio con key: ", message.Key)
 		s.BaseServer.myDatastoreMutex.Unlock()
 	}
 	return nil
@@ -356,13 +352,10 @@ func (s *ServerSequential) lastValue() bool {
 
 	s.myQueueMutex.Lock()
 	defer s.myQueueMutex.Unlock()
-	if len(s.LocalQueue) <= len(addresses.Addresses) {
-		for _, msg := range s.LocalQueue {
-			if !strings.Contains(msg.MessageBase.Key, "LastValue") {
-				return false
-			}
+	for _, msg := range s.LocalQueue {
+		if !(msg.MessageBase.Key == "LastValue") {
+			return false
 		}
-		return true
 	}
-	return false
+	return true
 }

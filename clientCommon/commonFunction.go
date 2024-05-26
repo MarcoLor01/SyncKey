@@ -98,7 +98,7 @@ func addElementToDsSequential(key string, value string, config Config, serverNum
 	if result.Done {
 		printSuccessful(args.MessageBase.Key, args.MessageBase.Value)
 	} else {
-		log.Println("Failed operation for message with key: ", args.MessageBase.Key, "and value: ", args.MessageBase.Key)
+
 	}
 	return nil
 }
@@ -126,7 +126,7 @@ func addElementToDsCausal(key string, value string, config Config, serverNumber 
 	if result.Done {
 		printSuccessful(args.MessageBase.Key, args.MessageBase.Value)
 	} else {
-		log.Println("Failed operation for message with key: ", args.MessageBase.Key, "and value: ", args.MessageBase.Value)
+		printFail(args.MessageBase.Key, args.MessageBase.Value)
 	}
 
 	return nil
@@ -153,7 +153,7 @@ func deleteElementFromDsSequential(key string, config Config, serverNumber int, 
 	if result.Done {
 		printKeySuccessful(args.MessageBase.Key)
 	} else {
-		log.Println("Failed operation for message with key: ", args.MessageBase.Key)
+		printKeyFail(args.MessageBase.Key)
 	}
 	return nil
 }
@@ -177,7 +177,7 @@ func deleteElementFromDsCausal(key string, config Config, serverNumber int, clie
 	if result.Done {
 		printKeySuccessful(args.MessageBase.Key)
 	} else {
-		log.Println("Failed operation for message with key: ", args.MessageBase.Key)
+		printKeyFail(args.MessageBase.Key)
 	}
 	return nil
 }
@@ -215,25 +215,26 @@ func getElementFromDsCausal(key string, client *rpc.Client, idMessageClient int,
 func getElementFromDsSequential(key string, client *rpc.Client, idMessageClient int, idMessage int) error {
 
 	log.Printf(call)
-	var returnValue string
-	args := common.Message{
+	message := common.Message{
 		Key:             key,
 		IdMessageClient: idMessageClient,
 		IdMessage:       idMessage,
+		OperationType:   3,
 	}
-	err := client.Call("ServerSequential.SequentialGetElement", args, &returnValue)
+	reply := common.Response{Done: false}
+	args := common.MessageSequential{MessageBase: message}
+	err := client.Call("ServerSequential.SequentialSendElement", args, &reply)
 	fmt.Println("Get element with Key: ", key)
-	fmt.Println("Value: ", returnValue)
 
 	if err != nil {
 		return fmt.Errorf(datastoreError+": %w", err)
 	}
-
-	if returnValue != "" {
-		log.Printf("Element with Key %s, have value: %s", args.Key, returnValue)
-	} else {
-		log.Printf("No element with Key: %s\n", args.Key)
-	}
+	//
+	//if returnValue != "" {
+	//	log.Printf("Element with Key %s, have value: %s", args.Key, returnValue)
+	//} else {
+	//	log.Printf("No element with Key: %s\n", args.Key)
+	//}
 	return nil
 }
 
@@ -299,4 +300,12 @@ func printSuccessful(key, value string) {
 
 func printKeySuccessful(key string) {
 	log.Println("Successful operation for message with key: ", key)
+}
+
+func printFail(key string, value string) {
+	log.Println("Failed operation for message with key: ", key, "and value: ", value)
+}
+
+func printKeyFail(key string) {
+	log.Println("Failed operation for message with key: ", key)
 }

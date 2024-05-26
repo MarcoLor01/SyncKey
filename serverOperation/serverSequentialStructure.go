@@ -112,14 +112,13 @@ func (s *ServerSequential) addToQueueSequential(message common.MessageSequential
 	s.myQueueMutex.Lock()
 	defer s.myQueueMutex.Unlock()
 
-	for i, element := range s.LocalQueue {
-		if message.MessageBase.Key == element.MessageBase.Key {
-			s.LocalQueue[i] = &message
-			s.orderQueue()
+	//Se il messaggio è gia presente, ritorna senza aggiungere nulla
+	for _, element := range s.LocalQueue {
+		if message.IdUnique == element.IdUnique {
 			return
 		}
 	}
-
+	//In caso contrario, aggiungi e ordina la coda
 	s.LocalQueue = append(s.LocalQueue, &message)
 	s.orderQueue()
 }
