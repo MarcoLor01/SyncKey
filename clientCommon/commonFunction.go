@@ -12,6 +12,8 @@ import (
 
 const call string = "Call to RPC server"
 const datastoreError string = "error adding the element to datastore, error: "
+const datastoreDeleteError string = "error deleting the element from the datastore, error: "
+const datastoreGetError string = "error getting the element from the datastore, error: "
 
 type Config struct {
 	Address []struct {
@@ -28,12 +30,12 @@ func HandlePutAction(consistency int, key string, value string, config Config, s
 	if consistency == 0 {
 		err := addElementToDsCausal(key, value, config, serverNumber, client, idMessageClient, idMessage)
 		if err != nil {
-			return fmt.Errorf("error adding element to datastore: %w", err)
+			return fmt.Errorf(datastoreError+": %w", err)
 		}
 	} else {
 		err := addElementToDsSequential(key, value, config, serverNumber, client, idMessageClient, idMessage)
 		if err != nil {
-			return fmt.Errorf("error adding element to datastore: %w", err)
+			return fmt.Errorf(datastoreError+": %w", err)
 		}
 	}
 	return nil
@@ -45,12 +47,12 @@ func HandleDeleteAction(consistency int, key string, config Config, serverNumber
 	if consistency == 0 {
 		err := deleteElementFromDsCausal(key, config, serverNumber, client, idMessageClient, idMessage)
 		if err != nil {
-			return fmt.Errorf("error deleting element to datastore: %w", err)
+			return fmt.Errorf(datastoreDeleteError+": %w", err)
 		}
 	} else {
 		err := deleteElementFromDsSequential(key, config, serverNumber, client, idMessageClient, idMessage)
 		if err != nil {
-			return fmt.Errorf("error deleting element to datastore: %w", err)
+			return fmt.Errorf(datastoreDeleteError+": %w", err)
 		}
 	}
 	return nil
@@ -62,12 +64,12 @@ func HandleGetAction(consistency int, key string, client *rpc.Client, idMessageC
 	if consistency == 0 {
 		err := getElementFromDsCausal(key, client, idMessageClient, idMessage)
 		if err != nil {
-			return fmt.Errorf("error getting element to datastore: %w", err)
+			return fmt.Errorf(datastoreGetError+": %w", err)
 		}
 	} else {
 		err := getElementFromDsSequential(key, client, idMessageClient, idMessage)
 		if err != nil {
-			return fmt.Errorf("error getting element to datastore: %w", err)
+			return fmt.Errorf(datastoreGetError+": %w", err)
 		}
 	}
 	return nil
@@ -81,7 +83,7 @@ func addElementToDsSequential(key string, value string, config Config, serverNum
 	n1 = key
 	n2 = value
 
-	log.Printf("Adding element with Key: %s, and Value: %s contacting %s", n1, n2, config.Address[serverNumber].Addr)
+	printAdd(n1, n2, config, serverNumber)
 	message := common.Message{Key: n1, Value: n2, OperationType: 1, IdMessageClient: idMessageClient, IdMessage: idMessage}
 	args := common.MessageSequential{MessageBase: message}
 	log.Printf(call)
@@ -94,7 +96,7 @@ func addElementToDsSequential(key string, value string, config Config, serverNum
 	}
 
 	if result.Done {
-		log.Println("Successful operation for message with key: ", args.MessageBase.Key, "and value: ", args.MessageBase.Key)
+		printSuccessful(args.MessageBase.Key, args.MessageBase.Value)
 	} else {
 		log.Println("Failed operation for message with key: ", args.MessageBase.Key, "and value: ", args.MessageBase.Key)
 	}
@@ -109,7 +111,7 @@ func addElementToDsCausal(key string, value string, config Config, serverNumber 
 	n1 = key
 	n2 = value
 
-	log.Printf("Adding element with Key: %s, and Value: %s contacting %s", n1, n2, config.Address[serverNumber].Addr)
+	printAdd(n1, n2, config, serverNumber)
 	message := common.Message{Key: n1, Value: n2, OperationType: 1, IdMessageClient: idMessageClient, IdMessage: idMessage}
 	args := common.MessageCausal{MessageBase: message, VectorTimestamp: make([]int, len(config.Address))}
 	log.Printf(call)
@@ -122,7 +124,7 @@ func addElementToDsCausal(key string, value string, config Config, serverNumber 
 	}
 
 	if result.Done {
-		log.Println("Successful operation for message with key: ", args.MessageBase.Key, "and value: ", args.MessageBase.Value)
+		printSuccessful(args.MessageBase.Key, args.MessageBase.Value)
 	} else {
 		log.Println("Failed operation for message with key: ", args.MessageBase.Key, "and value: ", args.MessageBase.Value)
 	}
@@ -149,7 +151,7 @@ func deleteElementFromDsSequential(key string, config Config, serverNumber int, 
 	}
 
 	if result.Done {
-		log.Println("Successful operation for message with key: ", args.MessageBase.Key)
+		printKeySuccessful(args.MessageBase.Key)
 	} else {
 		log.Println("Failed operation for message with key: ", args.MessageBase.Key)
 	}
@@ -173,7 +175,7 @@ func deleteElementFromDsCausal(key string, config Config, serverNumber int, clie
 	}
 
 	if result.Done {
-		log.Println("Successful operation for message with key: ", args.MessageBase.Key)
+		printKeySuccessful(args.MessageBase.Key)
 	} else {
 		log.Println("Failed operation for message with key: ", args.MessageBase.Key)
 	}
@@ -284,4 +286,17 @@ func CloseClient(client *rpc.Client) {
 	if err != nil {
 		log.Println("Error closing the client:", err)
 	}
+}
+
+func printAdd(n1 string, n2 string, config Config, serverNumber int) {
+	log.Printf("Adding element with Key: %s, and Value: %s contacting %s", n1, n2, config.Address[serverNumber].Addr)
+
+}
+
+func printSuccessful(key, value string) {
+	log.Println("Successful operation for message with key: ", key, "and value: ", value)
+}
+
+func printKeySuccessful(key string) {
+	log.Println("Successful operation for message with key: ", key)
 }
