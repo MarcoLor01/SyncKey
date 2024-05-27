@@ -92,7 +92,7 @@ func (s *ServerCausal) checkCondition(message *common.MessageCausal, mod bool) b
 }
 
 func (s *ServerBase) createResponse() *common.Response {
-	return &common.Response{Done: false}
+	return &common.Response{Done: false, GetValue: ""}
 }
 
 func (s *ServerCausal) incrementClockReceive(message *common.MessageCausal) {

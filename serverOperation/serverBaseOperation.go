@@ -109,6 +109,7 @@ func (s *ServerBase) InitializeMessageClient(clientId int) {
 	s.myClientMessage = common.ClientMessage{
 		ClientId:            clientId, // Inserisci l'ID del server appropriato qui
 		ActualNumberMessage: 1,        // Inserisci il numero del messaggio appropriato qui
+		ActualAnswerMessage: 1,
 	}
 }
 
@@ -120,14 +121,36 @@ func (s *ServerBase) canProcess(message *common.Message, reply *common.Response)
 	defer s.myClientMutex.Unlock()
 
 	for {
+		fmt.Println("Message with key: ", message.Key, "clientId:", message.IdMessageClient, "idMessage: ", message.IdMessage)
 		if message.IdMessageClient == s.myClientMessage.ClientId {
 			if message.IdMessage == s.myClientMessage.ActualNumberMessage {
 				reply.Done = true
 				s.myClientMessage.ActualNumberMessage++
+
 				return nil
 			}
 		} else {
 			return fmt.Errorf("I can't handle message from this Client")
+		}
+		// Rilascia temporaneamente il lock prima di dormire
+		s.myClientMutex.Unlock()
+		time.Sleep(1 * time.Second)
+		s.myClientMutex.Lock()
+	}
+}
+
+func (s *ServerBase) canAnswer(message *common.Message, reply *common.Response) error {
+	s.myClientMutex.Lock()
+	defer s.myClientMutex.Unlock()
+	for {
+		if message.IdMessageClient == s.myClientMessage.ClientId {
+			if message.IdMessage == s.myClientMessage.ActualAnswerMessage {
+				reply.Done = true
+				s.myClientMessage.ActualAnswerMessage++
+				return nil
+			}
+		} else {
+			return fmt.Errorf("I can't send answer for message from this Client")
 		}
 
 		// Rilascia temporaneamente il lock prima di dormire

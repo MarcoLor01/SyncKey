@@ -96,18 +96,6 @@ func (s *ServerSequential) removeFromQueueDeletingSequential(message common.Mess
 	}
 }
 
-//Funzione per la rimozione di un messaggio dalla coda nel caso della consistenza sequenziale
-
-func (s *ServerSequential) removeFromQueueSequential(message common.MessageSequential) {
-	for i, msg := range s.LocalQueue {
-		if message.MessageBase.Key == msg.MessageBase.Key && message.MessageBase.Value == msg.MessageBase.Value && message.ScalarTimestamp == msg.ScalarTimestamp {
-			s.BaseServer.DataStore[msg.MessageBase.Key] = msg.MessageBase.Value
-			s.LocalQueue = append(s.LocalQueue[:i], s.LocalQueue[i+1:]...)
-			break
-		}
-	}
-}
-
 func (s *ServerSequential) addToQueueSequential(message common.MessageSequential) {
 	s.myQueueMutex.Lock()
 	defer s.myQueueMutex.Unlock()

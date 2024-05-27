@@ -31,10 +31,12 @@ type MessageCausal struct {
 }
 
 type Response struct {
-	Done bool
+	Done     bool
+	GetValue string
 } //Risposta per la consistenza causale
 
 type ClientMessage struct {
 	ClientId            int //Id del server che mi invierà i messaggi per tutta la durata dell'invio
 	ActualNumberMessage int //Il messaggio che mi aspetto di ricevere
+	ActualAnswerMessage int //Messaggio di cui posso inoltrare la richiesta per mantenere ordinamento FIFO
 }

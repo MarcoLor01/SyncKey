@@ -12,9 +12,9 @@ COPY . .
 
 # Expose port 8080 to the outside world
 EXPOSE 8080
-RUN go build -o clients/client ./clients/client.go
-#RUN go build -o clients/consistencyTest ./clients/consistencyTest.go
+#RUN go build -o clients/client ./clients/client.go
+RUN go build -o clients/clientSequential ./clients/clientSequential.go
 
 # Command to run the executable
 CMD ["./clients/client"]
-#CMD ["./clients/consistencyTest"]
+CMD ["./clients/clientSequential"]

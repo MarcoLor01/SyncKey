@@ -90,7 +90,7 @@ func addElementToDsSequential(key string, value string, config Config, serverNum
 
 	result := common.Response{Done: false}
 
-	err := client.Call("ServerSequential.SequentialSendElement", args, &result) //Calling the SequentialSendElement routine
+	err := client.Call("ServerSequential.SequentialSendElement", args, &result)
 	if err != nil {
 		return fmt.Errorf(datastoreError+": %w", err)
 	}
@@ -98,7 +98,7 @@ func addElementToDsSequential(key string, value string, config Config, serverNum
 	if result.Done {
 		printSuccessful(args.MessageBase.Key, args.MessageBase.Value)
 	} else {
-
+		printFail(args.MessageBase.Key, args.MessageBase.Value)
 	}
 	return nil
 }
@@ -138,7 +138,7 @@ func deleteElementFromDsSequential(key string, config Config, serverNumber int, 
 	n1 := key
 
 	log.Printf("Get element with Key: %s contacting %s", n1, config.Address[serverNumber].Addr)
-	message := common.Message{Key: n1, OperationType: 1, IdMessageClient: idMessageClient, IdMessage: idMessage}
+	message := common.Message{Key: n1, OperationType: 2, IdMessageClient: idMessageClient, IdMessage: idMessage}
 	args := common.MessageSequential{MessageBase: message}
 	result := common.Response{Done: false}
 
@@ -213,28 +213,24 @@ func getElementFromDsCausal(key string, client *rpc.Client, idMessageClient int,
 //Funzione per recuperare un elemento in versione sequenziale
 
 func getElementFromDsSequential(key string, client *rpc.Client, idMessageClient int, idMessage int) error {
-
+	fmt.Println("Operazione di get con key: ", key, "idMessageClient: ", idMessageClient, "idMessage: ", idMessage)
 	log.Printf(call)
-	message := common.Message{
+	args := common.Message{
 		Key:             key,
 		IdMessageClient: idMessageClient,
 		IdMessage:       idMessage,
-		OperationType:   3,
 	}
 	reply := common.Response{Done: false}
-	args := common.MessageSequential{MessageBase: message}
-	err := client.Call("ServerSequential.SequentialSendElement", args, &reply)
-	fmt.Println("Get element with Key: ", key)
 
+	err := client.Call("ServerSequential.SequentialGetElement", args, &reply)
 	if err != nil {
 		return fmt.Errorf(datastoreError+": %w", err)
 	}
-	//
-	//if returnValue != "" {
-	//	log.Printf("Element with Key %s, have value: %s", args.Key, returnValue)
-	//} else {
-	//	log.Printf("No element with Key: %s\n", args.Key)
-	//}
+	if reply.Done != false {
+		log.Printf("Element with Key %s, have value: %s", args.Key, reply.GetValue)
+	} else {
+		log.Printf("No element with Key: %s\n", args.Key)
+	}
 	return nil
 }
 

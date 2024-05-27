@@ -14,7 +14,6 @@ import (
 func (s *ServerSequential) SequentialSendElement(message common.MessageSequential, response *common.Response) error {
 	//Aggiorno il mio clock scalare e lo allego al messaggio da inviare a tutti i server
 	//Genero inoltre un ID univoco e lo allego al messaggio insieme al mio ID, in questo modo tutti sapranno in ogni momento chi ha generato il messaggio
-	log.Println("MESSAGGIO ARRIVATO DA CLIENT: ", message.MessageBase.Key, "con valore: ", message.MessageBase.Value)
 	responseProcess := s.BaseServer.createResponse()
 	errChan := make(chan error, 1)
 
@@ -37,8 +36,20 @@ func (s *ServerSequential) SequentialSendElement(message common.MessageSequentia
 		return fmt.Errorf("SequentialSendElement: error sending to other servers: %v", err)
 	}
 
-	response.Done = reply.Done
-	//Tutti i messaggi lo hanno in coda
+	errAnswerChan := make(chan error, 1)
+	answerProcess := s.BaseServer.createResponse()
+
+	go func() {
+		errAnswer := s.BaseServer.canAnswer(&message.MessageBase, answerProcess)
+		errAnswerChan <- errAnswer
+	}()
+
+	// Attendere e gestire l'errore dalla goroutine
+	if errAnswer2 := <-errAnswerChan; errAnswer2 != nil {
+		return errAnswer2
+	}
+	response.Done = answerProcess.Done
+	time.Sleep(100 * time.Millisecond)
 	return nil
 }
 
@@ -154,6 +165,7 @@ func (s *ServerSequential) SaveMessageQueue(message common.MessageSequential, re
 		return fmt.Errorf("not deliverable message with key: %s", message.MessageBase.Key)
 	}
 	reply.Done = true //Il problema è che non è in condizione di consegna
+
 	return nil
 }
 
@@ -175,7 +187,6 @@ func (s *ServerSequential) sendAck(addr string, messageAck AckMessage, ch chan c
 	//Delay causale inserito
 	delayInserted := calculateDelay()
 	time.Sleep(time.Duration(delayInserted) * time.Millisecond)
-
 	if err1 := client.Call("ServerSequential.SequentialSendAck", messageAck, reply); err1 != nil {
 		return fmt.Errorf("error in saving Message in queue")
 	}
@@ -190,7 +201,6 @@ func (s *ServerSequential) SequentialSendAck(messageAck AckMessage, result *comm
 	//Questa funzione itera sulla mia coda, quando trova un messaggio che ha
 	//Id univoco uguale a quello del messaggio che mi è stato inviato, incrementa il contatore degli ACK ricevuti
 	//Se non trova il messaggio ritorna false
-
 	s.myQueueMutex.Lock()
 	isInQueue := false
 	for _, msg := range s.LocalQueue {
@@ -217,6 +227,7 @@ func (s *ServerSequential) applicationDeliveryCondition(message common.MessageSe
 		s.checkQueue(message, ch)
 		result := <-ch
 		if result.Done {
+
 			//Se la prima condizione è valida, valutiamo la seconda
 			if s.checkSecondCondition(message) == true || s.lastValue() == true {
 				break
@@ -231,7 +242,7 @@ func (s *ServerSequential) applicationDeliveryCondition(message common.MessageSe
 
 	reply := s.BaseServer.createResponse()
 
-	err := s.sendToApplication(message, reply) //Problema qui, risulta false reply.Done
+	err := s.sendToApplication(message, reply)
 
 	if err != nil {
 		return fmt.Errorf("error in sending to application")
@@ -310,20 +321,40 @@ func (s *ServerSequential) updateDataStore(message common.MessageSequential, rep
 		log.Println("ESEGUITA, PROVENIENTE DA SERVER: ", message.MessageBase.ServerId, "azione di delete per messaggio con key: ", message.MessageBase.Key)
 		s.sequentialDeleteElementDatastore(message)
 		reply.Done = true
-	} else if message.MessageBase.OperationType == 3 {
-		var value string
-		err := s.SequentialGetElement(message.MessageBase, &value)
-		if err != nil {
-			return
-		}
-		reply.Done = true
 	}
 }
 
-func (s *ServerSequential) SequentialGetElement(message common.Message, reply *string) error {
+func (s *ServerSequential) SequentialGetElement(message common.Message, reply *common.Response) error {
+	fmt.Println("MESSAGGIO ARRIVATO DA CLIENT: ", message.Key)
+	responseProcess := s.BaseServer.createResponse()
+	errChan := make(chan error, 1)
+
+	go func() {
+		err := s.BaseServer.canProcess(&message, responseProcess)
+		errChan <- err
+	}()
+	// Attendere e gestire l'errore dalla goroutine
+	if err := <-errChan; err != nil {
+		return err
+	}
+
+	errAnswerChan := make(chan error, 1)
+	getResponse := s.BaseServer.createResponse()
+
+	//Attende direttamente di poter rispondere al client non dovendo essere processato
+	go func() {
+		errAnswer := s.BaseServer.canAnswer(&message, getResponse)
+		errAnswerChan <- errAnswer
+	}()
+
+	// Attendere e gestire l'errore dalla goroutine
+	if errAnswer2 := <-errAnswerChan; errAnswer2 != nil {
+		return errAnswer2
+	}
+
 	s.BaseServer.myDatastoreMutex.Lock()
 	if value, ok := s.BaseServer.DataStore[message.Key]; ok {
-		*reply = value
+		reply.GetValue = value
 		log.Println("ESEGUITA, PROVENIENTE DA SERVER: ", message.ServerId, "azione di get per messaggio con key: ", message.Key, "valore: ", value)
 		s.BaseServer.myDatastoreMutex.Unlock()
 		return nil
@@ -331,6 +362,7 @@ func (s *ServerSequential) SequentialGetElement(message common.Message, reply *s
 		log.Println("NON ESEGUITA, PROVENIENTE DA SERVER: ", message.ServerId, "azione di get per messaggio con key: ", message.Key)
 		s.BaseServer.myDatastoreMutex.Unlock()
 	}
+	time.Sleep(200 * time.Millisecond)
 	return nil
 }
 
@@ -349,7 +381,6 @@ func (s *ServerSequential) incrementClockReceive(message common.MessageSequentia
 }
 
 func (s *ServerSequential) lastValue() bool {
-
 	s.myQueueMutex.Lock()
 	defer s.myQueueMutex.Unlock()
 	for _, msg := range s.LocalQueue {
