@@ -121,7 +121,6 @@ func (s *ServerBase) canProcess(message *common.Message, reply *common.Response)
 	defer s.myClientMutex.Unlock()
 
 	for {
-		fmt.Println("Message with key: ", message.Key, "clientId:", message.IdMessageClient, "idMessage: ", message.IdMessage)
 		if message.IdMessageClient == s.myClientMessage.ClientId {
 			if message.IdMessage == s.myClientMessage.ActualNumberMessage {
 				reply.Done = true
