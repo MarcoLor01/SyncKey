@@ -128,7 +128,6 @@ func (s *ServerBase) InitializeMessageClients(numberClients int) {
 //L'arrivo dei/del messaggi/o che lo precede/precedono
 
 func (s *ServerBase) canProcess(message *common.Message, reply *common.Response) error {
-	fmt.Println("IdMessageClient: ", message.IdMessageClient)
 	s.myClientMutex[message.IdMessageClient-1].Lock()
 	defer s.myClientMutex[message.IdMessageClient-1].Unlock()
 

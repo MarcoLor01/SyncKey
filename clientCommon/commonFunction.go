@@ -21,6 +21,32 @@ type Config struct {
 	} `json:"address"`
 }
 
+// Operation Definizione del tipo di enum per le operazioni
+type Operation int
+
+// Definizione delle costanti per le operazioni
+const (
+	Put Operation = iota + 1
+	Delete
+	Get
+)
+
+// Mappa per associare i valori numerici alle stringhe
+var operationToString = map[Operation]string{
+	Put:    "PUT",
+	Delete: "DELETE",
+	Get:    "GET",
+}
+
+// GetOperationString Funzione per ottenere la rappresentazione testuale dell'operazione
+
+func GetOperationString(op Operation) string {
+	if str, ok := operationToString[op]; ok {
+		return str
+	}
+	return "unknown"
+}
+
 //Funzione per la gestione delle azioni
 
 //Azione di put
@@ -94,9 +120,9 @@ func addElementToDsSequential(key string, value string, config Config, serverNum
 	}
 
 	if result.Done {
-		printSuccessful(args.MessageBase.Key, args.MessageBase.Value)
+		printPutSuccessful(args.MessageBase.Key, args.MessageBase.Value, message.IdMessageClient)
 	} else {
-		printFail(args.MessageBase.Key, args.MessageBase.Value)
+		printPutFail(args.MessageBase.Key, args.MessageBase.Value, message.IdMessageClient)
 	}
 	return nil
 }
@@ -121,9 +147,9 @@ func addElementToDsCausal(key string, value string, config Config, serverNumber 
 	}
 
 	if result.Done {
-		printSuccessful(args.MessageBase.Key, args.MessageBase.Value)
+		printPutSuccessful(args.MessageBase.Key, args.MessageBase.Value, message.IdMessageClient)
 	} else {
-		printFail(args.MessageBase.Key, args.MessageBase.Value)
+		printPutFail(args.MessageBase.Key, args.MessageBase.Value, message.IdMessageClient)
 	}
 
 	return nil
@@ -146,9 +172,9 @@ func deleteElementFromDsSequential(key string, config Config, serverNumber int, 
 	}
 
 	if result.Done {
-		printKeySuccessful(args.MessageBase.Key)
+		printKeySuccessful(args.MessageBase.Key, GetOperationString(Operation(message.IdMessageClient)), message.IdMessageClient)
 	} else {
-		printKeyFail(args.MessageBase.Key)
+		printKeyFail(args.MessageBase.Key, GetOperationString(Operation(message.IdMessageClient)), message.IdMessageClient)
 	}
 	return nil
 }
@@ -170,9 +196,9 @@ func deleteElementFromDsCausal(key string, config Config, serverNumber int, clie
 	}
 
 	if result.Done {
-		printKeySuccessful(args.MessageBase.Key)
+		printKeySuccessful(args.MessageBase.Key, GetOperationString(Operation(message.IdMessageClient)), message.IdMessageClient)
 	} else {
-		printKeyFail(args.MessageBase.Key)
+		printKeyFail(args.MessageBase.Key, GetOperationString(Operation(message.IdMessageClient)), message.IdMessageClient)
 	}
 	return nil
 }
@@ -213,16 +239,16 @@ func getElementFromDsSequential(key string, client *rpc.Client, idMessageClient 
 		IdMessage:       idMessage,
 		OperationType:   3,
 	}
-	reply := common.Response{Done: false, GetValue: ""}
+	reply := common.Response{Done: false}
 	args := common.MessageSequential{MessageBase: message}
 	err := client.Call("ServerSequential.SequentialSendElement", args, &reply)
 	if err != nil {
 		return fmt.Errorf(datastoreError+": %w", err)
 	}
 	if reply.Done != false {
-		log.Printf("Element with Key %s, have value: %s", message.Key, reply.GetValue)
+		printKeySuccessful(key, GetOperationString(Operation(message.OperationType)), idMessageClient)
 	} else {
-		log.Printf("No element with Key: %s\n", message.Key)
+		printKeyFail(key, GetOperationString(Operation(message.OperationType)), idMessageClient)
 	}
 	return nil
 }
@@ -283,18 +309,18 @@ func printAdd(n1 string, n2 string, config Config, serverNumber int) {
 
 }
 
-func printSuccessful(key, value string) {
-	log.Println("ESEGUITA OPERAZIONE DI TIPO ", "SU SERVER: ", "CON ", key, ":", value)
+func printPutSuccessful(key, value string, idServer int) {
+	log.Println("ESEGUITA OPERAZIONE DI TIPO PUT SU SERVER: ", idServer, "CON: ", key, ":", value)
 }
 
-func printKeySuccessful(key string) {
-	log.Println("Successful operation for message with key: ", key)
+func printKeySuccessful(key string, operationType string, idServer int) {
+	log.Println("ESEGUITA OPERAZIONE DI TIPO ", operationType, "SU SERVER: ", idServer, "CON:", key)
 }
 
-func printFail(key string, value string) {
-	log.Println("Failed operation for message with key: ", key, "and value: ", value)
+func printPutFail(key string, value string, idServer int) {
+	log.Println("NON ESEGUITA OPERAZIONE DI TIPO PUT SU SERVER: ", idServer, "CON: ", key, ":", value)
 }
 
-func printKeyFail(key string) {
-	log.Println("Failed operation for message with key: ", key)
+func printKeyFail(key string, operationType string, idServer int) {
+	log.Println("NON ESEGUITA OPERAZIONE DI TIPO ", operationType, "SU SERVER: ", idServer, "CON:", key)
 }

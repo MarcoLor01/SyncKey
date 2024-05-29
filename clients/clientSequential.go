@@ -60,7 +60,7 @@ func funcServer1MediumSequential(client *rpc.Client, config clientCommon.Config,
 		func() { handlePutWithChannel(consistency, "x", "b", config, 0, client, 1, 3, actionDone, errCh) },
 		func() { handleGetWithChannel(consistency, "x", client, 1, 4, actionDone, errCh) },
 		func() {
-			handlePutWithChannel(consistency, "LastValue", "LastValue", config, 0, client, 1, 5, actionDone, errCh)
+			handlePutWithChannel(consistency, "LastValue", "LastValue(1)", config, 0, client, 1, 5, actionDone, errCh)
 		},
 	}
 	executeSequentialActions(actions, wg)
@@ -74,7 +74,7 @@ func funcServer2MediumSequential(client *rpc.Client, config clientCommon.Config,
 		func() { handlePutWithChannel(consistency, "y", "a", config, 1, client, 2, 3, actionDone, errCh) },
 		func() { handleGetWithChannel(consistency, "x", client, 2, 4, actionDone, errCh) },
 		func() {
-			handlePutWithChannel(consistency, "LastValue", "sa", config, 1, client, 2, 5, actionDone, errCh)
+			handlePutWithChannel(consistency, "LastValue", "LastValue(2)", config, 1, client, 2, 5, actionDone, errCh)
 		},
 	}
 
@@ -89,7 +89,7 @@ func funcServer3MediumSequential(client *rpc.Client, config clientCommon.Config,
 		func() { handlePutWithChannel(consistency, "y", "c", config, 2, client, 3, 3, actionDone, errCh) },
 		func() { handleGetWithChannel(consistency, "x", client, 3, 4, actionDone, errCh) },
 		func() {
-			handlePutWithChannel(consistency, "LastValue", "df", config, 2, client, 3, 5, actionDone, errCh)
+			handlePutWithChannel(consistency, "LastValue", "LastValue(3)", config, 2, client, 3, 5, actionDone, errCh)
 		},
 	}
 
