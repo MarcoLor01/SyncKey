@@ -108,11 +108,11 @@ func (s *ServerCausal) incrementClockReceive(message *common.MessageCausal) {
 	}
 }
 
-func InitializeAndRegisterServerCausal(server *rpc.Server, serverId int) {
+func InitializeAndRegisterServerCausal(server *rpc.Server, numberClients int) {
 	myServer := InitializeServerCausal()
 	err := server.Register(myServer)
 	if err != nil {
 		log.Fatal("Format of service SyncKey is not correct: ", err)
 	}
-	myServer.BaseServer.InitializeMessageClient(serverId)
+	myServer.BaseServer.InitializeMessageClients(numberClients)
 }

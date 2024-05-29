@@ -33,11 +33,15 @@ func main() {
 	var server *rpc.Server
 	server = rpc.NewServer()
 	err = serverOperation.InitializeServerList()
+	numberClients := serverOperation.GetLength()
+	fmt.Println("Number of client: ", numberClients)
 	if err != nil {
 		log.Fatal(err)
 	}
-	serverOperation.InitializeAndRegisterServerSequential(server, 2)
-	serverOperation.InitializeAndRegisterServerCausal(server, 2)
+	//Inizializzo il server che esegue con consistenza sequenziale
+	serverOperation.InitializeAndRegisterServerSequential(server, numberClients)
+	//Inizializzo il server che esegue con consistenza causale
+	serverOperation.InitializeAndRegisterServerCausal(server, numberClients)
 	fmt.Println("Server registered successfully")
 	serverOperation.MyId = 2 //Imposto il mio Id che deve essere univoco per ogni server
 

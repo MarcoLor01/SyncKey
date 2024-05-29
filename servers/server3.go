@@ -36,8 +36,15 @@ func main() {
 	if err != nil {
 		return
 	}
-	serverOperation.InitializeAndRegisterServerSequential(server, 3)
-	serverOperation.InitializeAndRegisterServerCausal(server, 3)
+	numberClients := serverOperation.GetLength()
+	fmt.Println("Number of client: ", numberClients)
+	if err != nil {
+		log.Fatal(err)
+	}
+	//Inizializzo il server che esegue con consistenza sequenziale
+	serverOperation.InitializeAndRegisterServerSequential(server, numberClients)
+	//Inizializzo il server che esegue con consistenza causale
+	serverOperation.InitializeAndRegisterServerCausal(server, numberClients)
 	fmt.Println("Server registered successfully")
 	serverOperation.MyId = 3 //Imposto il mio Id che deve essere univoco per ogni server
 

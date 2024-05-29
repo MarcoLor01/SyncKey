@@ -37,13 +37,13 @@ func InitializeServerSequential() *ServerSequential {
 	return myServer
 }
 
-func InitializeAndRegisterServerSequential(server *rpc.Server, clientId int) {
+func InitializeAndRegisterServerSequential(server *rpc.Server, numberClients int) {
 	myServer := InitializeServerSequential()
 	err := server.Register(myServer)
 	if err != nil {
 		log.Fatal("Format of service SyncKey is not correct: ", err)
 	}
-	myServer.BaseServer.InitializeMessageClient(clientId)
+	myServer.BaseServer.InitializeMessageClients(numberClients)
 }
 
 //Funzione per creazione di un messaggio di ACK

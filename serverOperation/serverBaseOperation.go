@@ -15,17 +15,16 @@ import (
 
 var MyId int //ID del server
 var addresses ServerInformation
-var serverReplicas = len(addresses.Addresses)
 
 type ServerInformation struct {
 	Addresses []ServerAddress `json:"address"`
 }
 
 type ServerBase struct {
-	myClientMessage  common.ClientMessage //Messaggi del client
-	myClientMutex    sync.Mutex           //Mutex per la sincronizzazione dell'accesso ai messaggi del client
-	DataStore        map[string]string    //Il mio datastore
-	myDatastoreMutex sync.Mutex           //Mutex per l'accesso al Datastore
+	myClientMessage  []common.ClientMessage //Per ogni client voglio memorizzare quanti messaggi mi arrivano e quanti ho processato
+	myClientMutex    []sync.Mutex           //Mutex per la sincronizzazione dell'accesso ai messaggi del client
+	DataStore        map[string]string      //Il mio datastore
+	myDatastoreMutex sync.Mutex             //Mutex per l'accesso al Datastore
 }
 
 type ServerAddress struct {
@@ -59,6 +58,10 @@ func InitializeServerList() error {
 		return fmt.Errorf("error unmarshalling file: %w", err)
 	}
 	return nil
+}
+
+func GetLength() int {
+	return len(addresses.Addresses)
 }
 
 //Funzioni per stampare il contenuto del Datastore,
@@ -105,11 +108,19 @@ func calculateDelay() int {
 	return delay
 }
 
-func (s *ServerBase) InitializeMessageClient(clientId int) {
-	s.myClientMessage = common.ClientMessage{
-		ClientId:            clientId, // Inserisci l'ID del server appropriato qui
-		ActualNumberMessage: 1,        // Inserisci il numero del messaggio appropriato qui
-		ActualAnswerMessage: 1,
+func (s *ServerBase) InitializeMessageClients(numberClients int) {
+
+	// Inizializza la slice con la dimensione corretta
+	s.myClientMessage = make([]common.ClientMessage, numberClients)
+	s.myClientMutex = make([]sync.Mutex, numberClients)
+
+	// Inizializza ogni elemento della slice
+	for i := 0; i < numberClients; i++ {
+		s.myClientMessage[i] = common.ClientMessage{
+			ClientId:            i + 1, // Usa l'indice come client ID
+			ActualNumberMessage: 1,     // Imposta il valore iniziale appropriato
+			ActualAnswerMessage: 1,     // Imposta il valore iniziale appropriato
+		}
 	}
 }
 
@@ -117,44 +128,38 @@ func (s *ServerBase) InitializeMessageClient(clientId int) {
 //L'arrivo dei/del messaggi/o che lo precede/precedono
 
 func (s *ServerBase) canProcess(message *common.Message, reply *common.Response) error {
-	s.myClientMutex.Lock()
-	defer s.myClientMutex.Unlock()
+	fmt.Println("IdMessageClient: ", message.IdMessageClient)
+	s.myClientMutex[message.IdMessageClient-1].Lock()
+	defer s.myClientMutex[message.IdMessageClient-1].Unlock()
 
 	for {
-		if message.IdMessageClient == s.myClientMessage.ClientId {
-			if message.IdMessage == s.myClientMessage.ActualNumberMessage {
-				reply.Done = true
-				s.myClientMessage.ActualNumberMessage++
-
-				return nil
-			}
+		if message.IdMessage == s.myClientMessage[message.IdMessageClient-1].ActualNumberMessage {
+			s.myClientMessage[message.IdMessageClient-1].ActualNumberMessage++
+			reply.Done = true
+			return nil
 		} else {
-			return fmt.Errorf("I can't handle message from this Client")
+			// Rilascia temporaneamente il lock prima di dormire
+			s.myClientMutex[message.IdMessageClient-1].Unlock()
+			time.Sleep(1 * time.Second)
+			s.myClientMutex[message.IdMessageClient-1].Lock()
 		}
-		// Rilascia temporaneamente il lock prima di dormire
-		s.myClientMutex.Unlock()
-		time.Sleep(1 * time.Second)
-		s.myClientMutex.Lock()
 	}
 }
 
 func (s *ServerBase) canAnswer(message *common.Message, reply *common.Response) error {
-	s.myClientMutex.Lock()
-	defer s.myClientMutex.Unlock()
+	s.myClientMutex[message.IdMessageClient-1].Lock()
+	defer s.myClientMutex[message.IdMessageClient-1].Unlock()
 	for {
-		if message.IdMessageClient == s.myClientMessage.ClientId {
-			if message.IdMessage == s.myClientMessage.ActualAnswerMessage {
-				reply.Done = true
-				s.myClientMessage.ActualAnswerMessage++
-				return nil
-			}
-		} else {
-			return fmt.Errorf("I can't send answer for message from this Client")
-		}
+		if message.IdMessage == s.myClientMessage[message.IdMessageClient-1].ActualAnswerMessage {
+			reply.Done = true
+			s.myClientMessage[message.IdMessageClient-1].ActualAnswerMessage++
+			return nil
 
-		// Rilascia temporaneamente il lock prima di dormire
-		s.myClientMutex.Unlock()
-		time.Sleep(1 * time.Second)
-		s.myClientMutex.Lock()
+		} else {
+			// Rilascia temporaneamente il lock prima di dormire
+			s.myClientMutex[message.IdMessageClient-1].Unlock()
+			time.Sleep(1 * time.Second)
+			s.myClientMutex[message.IdMessageClient-1].Lock()
+		}
 	}
 }
