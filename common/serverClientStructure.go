@@ -21,6 +21,69 @@ type MessageSequential struct {
 	IdUnique        string //Id univoco che identifica il messaggio, aggiunto perché il confronto con key e value provocava problemi in caso di messaggi con key equivalente
 }
 
+type MessageSequentialOperation interface {
+	GetKey() string
+	GetMessageBase() Message
+	GetTimestamp() int
+	SetTimestamp(int)
+	GetNumberAck() int
+	IncrementNumberAck()
+	GetID() string
+	SetServerID(int)
+	GetServerID() int
+	SetID(string)
+	GetValue() string
+	GetOperationType(int)
+}
+
+func (m *MessageSequential) GetOperationType() int {
+	return m.MessageBase.OperationType
+}
+
+func (m *MessageSequential) GetValue() string {
+	return m.MessageBase.Value
+}
+
+func (m *MessageSequential) GetServerID() int {
+	return m.MessageBase.ServerId
+}
+
+func (m *MessageSequential) SetServerID(id int) {
+	m.MessageBase.ServerId = id
+}
+
+func (m *MessageSequential) GetKey() string {
+	return m.MessageBase.Key
+}
+
+func (m *MessageSequential) SetTimestamp(value int) {
+	m.ScalarTimestamp = value
+}
+
+func (m *MessageSequential) GetMessageBase() *Message {
+	return &m.MessageBase
+}
+
+func (m *MessageSequential) GetTimestamp() int {
+	return m.ScalarTimestamp
+}
+
+func (m *MessageSequential) GetNumberAck() int {
+	return m.NumberAck
+}
+
+func (m *MessageSequential) IncrementNumberAck() {
+	m.NumberAck++
+}
+
+func (m *MessageSequential) GetID() string {
+	return m.IdUnique
+}
+
+func (m *MessageSequential) SetID(value string) {
+	m.IdUnique = value
+}
+
 //Strutture di cui necessito per la consistenza causale
 
 type MessageCausal struct {

@@ -137,7 +137,7 @@ func (s *ServerBase) canProcess(message *common.Message, reply *common.Response)
 			reply.Done = true
 			return nil
 		} else {
-			// Rilascia temporaneamente il lock prima di dormire
+			// Rilascia temporaneamente il lockClockMutex prima di dormire
 			s.myClientMutex[message.IdMessageClient-1].Unlock()
 			time.Sleep(1 * time.Second)
 			s.myClientMutex[message.IdMessageClient-1].Lock()
@@ -155,7 +155,7 @@ func (s *ServerBase) canAnswer(message *common.Message, reply *common.Response) 
 			return nil
 
 		} else {
-			// Rilascia temporaneamente il lock prima di dormire
+			// Rilascia temporaneamente il lockClockMutex prima di dormire
 			s.myClientMutex[message.IdMessageClient-1].Unlock()
 			time.Sleep(1 * time.Second)
 			s.myClientMutex[message.IdMessageClient-1].Lock()

@@ -17,7 +17,7 @@ func (s *ServerSequential) SequentialSendElement(message common.MessageSequentia
 	responseProcess := s.BaseServer.createResponse()
 	errChan := make(chan error, 1)
 	go func() {
-		err := s.BaseServer.canProcess(&message.MessageBase, responseProcess)
+		err := s.BaseServer.canProcess(message.GetMessageBase(), responseProcess)
 		errChan <- err
 	}()
 
@@ -38,7 +38,7 @@ func (s *ServerSequential) SequentialSendElement(message common.MessageSequentia
 	answerProcess := s.BaseServer.createResponse()
 
 	go func() {
-		errAnswer := s.BaseServer.canAnswer(&message.MessageBase, answerProcess)
+		errAnswer := s.BaseServer.canAnswer(message.GetMessageBase(), answerProcess)
 		errAnswerChan <- errAnswer
 	}()
 
@@ -53,18 +53,18 @@ func (s *ServerSequential) SequentialSendElement(message common.MessageSequentia
 }
 
 func (s *ServerSequential) updateClock() {
-	s.myClockMutex.Lock()
-	s.MyScalarClock++
-	s.myClockMutex.Unlock()
+	s.lockClockMutex()
+	s.incrementClock()
+	s.unlockClockMutex()
 }
 
 func (s *ServerSequential) prepareMessage(message *common.MessageSequential) {
 	s.updateClock()
-	s.myClockMutex.Lock()
-	message.ScalarTimestamp = s.MyScalarClock
-	s.myClockMutex.Unlock()
-	message.MessageBase.ServerId = MyId
-	message.IdUnique = generateUniqueID()
+	s.lockClockMutex()
+	message.SetTimestamp(s.getClock())
+	s.unlockClockMutex()
+	message.SetServerID(MyId)
+	message.SetID(generateUniqueID())
 }
 
 func (s *ServerSequential) sendToOtherServers(message common.MessageSequential, response *common.Response) error {
@@ -194,16 +194,16 @@ func (s *ServerSequential) SequentialSendAck(messageAck AckMessage, result *comm
 	//Questa funzione itera sulla mia coda, quando trova un messaggio che ha
 	//Id univoco uguale a quello del messaggio che mi è stato inviato, incrementa il contatore degli ACK ricevuti
 	//Se non trova il messaggio ritorna false
-	s.myQueueMutex.Lock()
+	s.lockQueueMutex()
 	isInQueue := false
 	for _, msg := range s.LocalQueue {
-		if msg.IdUnique == messageAck.Element.IdUnique {
+		if msg.IdUnique == messageAck.GetIdUnique() {
 			msg.NumberAck++
 			isInQueue = true
 			break
 		}
 	}
-	s.myQueueMutex.Unlock()
+	s.unlockQueueMutex()
 	result.Done = isInQueue
 	return nil
 }
@@ -244,13 +244,13 @@ func (s *ServerSequential) applicationDeliveryCondition(message common.MessageSe
 }
 
 func (s *ServerSequential) checkSecondCondition(message common.MessageSequential) bool {
-	s.myQueueMutex.Lock()
-	defer s.myQueueMutex.Unlock()
+	s.lockQueueMutex()
+	defer s.unlockQueueMutex()
 	for i := range addresses.Addresses {
 		found := false
 		for _, msg := range s.LocalQueue {
 			if msg.MessageBase.ServerId == i+1 {
-				if msg.ScalarTimestamp > message.ScalarTimestamp {
+				if msg.ScalarTimestamp > message.GetTimestamp() {
 					found = true
 					break
 				}
@@ -265,13 +265,13 @@ func (s *ServerSequential) checkSecondCondition(message common.MessageSequential
 
 func (s *ServerSequential) checkQueue(message common.MessageSequential, ch chan common.Response) {
 
-	s.myQueueMutex.Lock()
+	s.lockQueueMutex()
 	// Controllo se la coda non è vuota
 
 	if len(s.LocalQueue) != 0 {
 		messageInQueue := s.LocalQueue[0]
-		if messageInQueue.IdUnique == message.IdUnique &&
-			messageInQueue.NumberAck == len(addresses.Addresses) {
+		if messageInQueue.GetID() == message.GetID() &&
+			messageInQueue.GetNumberAck() == len(addresses.Addresses) {
 			// Questa condizione è verificata
 			ch <- common.Response{Done: true}
 		} else {
@@ -279,7 +279,7 @@ func (s *ServerSequential) checkQueue(message common.MessageSequential, ch chan 
 		}
 	}
 
-	s.myQueueMutex.Unlock()
+	s.unlockQueueMutex()
 }
 
 func (s *ServerSequential) sendToApplication(message common.MessageSequential, reply *common.Response) error {
@@ -309,21 +309,21 @@ func (s *ServerSequential) updateDataStore(message common.MessageSequential, rep
 	reply.Done = false
 	if message.MessageBase.OperationType == 1 {
 		s.sequentialAddElementDatastore(message)
-		log.Println("ESEGUITA, PROVENIENTE DA SERVER: ", message.MessageBase.ServerId, "azione di put per messaggio con key: ", message.MessageBase.Key, " e value: ", message.MessageBase.Value)
+		log.Println("ESEGUITA, PROVENIENTE DA SERVER: ", message.GetServerID(), "azione di put per messaggio con key: ", message.GetKey(), " e value: ", message.GetValue())
 		reply.Done = true
 	} else if message.MessageBase.OperationType == 2 {
 		s.sequentialDeleteElementDatastore(message)
-		log.Println("ESEGUITA, PROVENIENTE DA SERVER: ", message.MessageBase.ServerId, "azione di delete per messaggio con key: ", message.MessageBase.Key)
+		log.Println("ESEGUITA, PROVENIENTE DA SERVER: ", message.GetServerID(), "azione di delete per messaggio con key: ", message.GetKey())
 		reply.Done = true
-	} else if message.MessageBase.OperationType == 3 && message.MessageBase.ServerId == MyId {
+	} else if message.GetOperationType() == 3 && message.GetServerID() == MyId {
 		responseGet := s.BaseServer.createResponse()
 		errGet := s.SequentialGetElement(message.MessageBase, responseGet)
 		if errGet != nil {
 			return errGet
 		}
-		log.Println("ESEGUITA, PROVENIENTE DA SERVER: ", message.MessageBase.ServerId, "azione di get per messaggio con key: ", message.MessageBase.Key, "e value: ", responseGet.GetValue)
+		log.Println("ESEGUITA, PROVENIENTE DA SERVER: ", message.GetServerID(), "azione di get per messaggio con key: ", message.GetKey(), "e value: ", responseGet.GetValue)
 		reply.Done = true
-	} else if message.MessageBase.OperationType == 3 && message.MessageBase.ServerId != MyId {
+	} else if message.GetOperationType() == 3 && message.GetServerID() != MyId {
 		reply.Done = true
 	} else {
 		reply.Done = true
@@ -348,24 +348,24 @@ func (s *ServerSequential) SequentialGetElement(message common.Message, reply *c
 }
 
 func (s *ServerSequential) incrementClockReceive(message common.MessageSequential) {
-	s.myClockMutex.Lock()
+	s.lockClockMutex()
 
-	if message.ScalarTimestamp > s.MyScalarClock {
-		s.MyScalarClock = message.ScalarTimestamp
+	if message.GetTimestamp() > s.getClock() {
+		s.setClock(message.GetTimestamp())
 	}
 
-	if message.MessageBase.ServerId != MyId {
-		s.MyScalarClock++
+	if message.GetServerID() != MyId {
+		s.incrementClock()
 	}
-	s.myClockMutex.Unlock()
+	s.unlockClockMutex()
 
 }
 
 func (s *ServerSequential) lastValue() bool {
-	s.myQueueMutex.Lock()
-	defer s.myQueueMutex.Unlock()
+	s.lockQueueMutex()
+	defer s.unlockQueueMutex()
 	for _, msg := range s.LocalQueue {
-		if !(msg.MessageBase.Key == "LastValue") {
+		if !(msg.GetKey() == "LastValue") {
 			return false
 		}
 	}
