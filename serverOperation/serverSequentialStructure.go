@@ -110,7 +110,7 @@ func (s *ServerSequential) createAckMessage(Message common.MessageSequential) Ac
 
 func (s *ServerSequential) sequentialDeleteElementDatastore(message common.MessageSequential) {
 	s.BaseServer.myDatastoreMutex.Lock()
-	delete(s.BaseServer.DataStore, message.MessageBase.Key)
+	delete(s.BaseServer.DataStore, message.GetKey())
 	s.BaseServer.myDatastoreMutex.Unlock()
 }
 
@@ -118,7 +118,7 @@ func (s *ServerSequential) sequentialDeleteElementDatastore(message common.Messa
 
 func (s *ServerSequential) sequentialAddElementDatastore(message common.MessageSequential) {
 	s.BaseServer.myDatastoreMutex.Lock()
-	s.BaseServer.DataStore[message.MessageBase.Key] = message.MessageBase.Value
+	s.BaseServer.DataStore[message.MessageBase.Key] = message.GetValue()
 	s.BaseServer.myDatastoreMutex.Unlock()
 }
 
@@ -126,11 +126,11 @@ func (s *ServerSequential) sequentialAddElementDatastore(message common.MessageS
 
 func (s *ServerSequential) updateQueue(message common.MessageSequential, reply *common.Response) {
 	s.myQueueMutex.Lock()
-	if len(s.LocalQueue) != 0 && s.LocalQueue[0].IdUnique == message.IdUnique {
+	if len(s.LocalQueue) != 0 && s.LocalQueue[0].GetID() == message.GetID() {
 		s.LocalQueue = append(s.LocalQueue[:0], s.LocalQueue[1:]...)
-		reply.Done = true
+		reply.SetDone(true)
 	} else {
-		reply.Done = false
+		reply.SetDone(false)
 	}
 	s.myQueueMutex.Unlock()
 }
@@ -139,8 +139,8 @@ func (s *ServerSequential) updateQueue(message common.MessageSequential, reply *
 
 func (s *ServerSequential) removeFromQueueDeletingSequential(message common.MessageSequential) {
 	for i, msg := range s.LocalQueue {
-		if message.MessageBase.Key == msg.MessageBase.Key && message.MessageBase.Value == msg.MessageBase.Value && message.ScalarTimestamp == msg.ScalarTimestamp {
-			delete(s.BaseServer.DataStore, msg.MessageBase.Key)
+		if message.GetKey() == msg.GetKey() && message.GetValue() == msg.GetValue() && message.GetTimestamp() == msg.GetTimestamp() {
+			delete(s.BaseServer.DataStore, msg.GetKey())
 			s.LocalQueue = append(s.LocalQueue[:i], s.LocalQueue[i+1:]...)
 			break
 		}
@@ -153,7 +153,7 @@ func (s *ServerSequential) addToQueueSequential(message common.MessageSequential
 
 	//Se il messaggio è gia presente, ritorna senza aggiungere nulla
 	for _, element := range s.LocalQueue {
-		if message.IdUnique == element.IdUnique {
+		if message.GetID() == element.GetID() {
 			return
 		}
 	}
@@ -169,9 +169,9 @@ func (s *ServerSequential) addToQueueSequential(message common.MessageSequential
 
 func (s *ServerSequential) orderQueue() {
 	sort.Slice(s.LocalQueue, func(i, j int) bool {
-		if s.LocalQueue[i].ScalarTimestamp != s.LocalQueue[j].ScalarTimestamp {
-			return s.LocalQueue[i].ScalarTimestamp < s.LocalQueue[j].ScalarTimestamp
+		if s.LocalQueue[i].GetTimestamp() != s.LocalQueue[j].GetTimestamp() {
+			return s.LocalQueue[i].GetTimestamp() < s.LocalQueue[j].GetTimestamp()
 		}
-		return s.LocalQueue[i].MessageBase.ServerId < s.LocalQueue[j].MessageBase.ServerId
+		return s.LocalQueue[i].GetServerID() < s.LocalQueue[j].GetServerID()
 	})
 }

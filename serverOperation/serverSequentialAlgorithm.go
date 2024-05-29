@@ -365,7 +365,7 @@ func (s *ServerSequential) lastValue() bool {
 	s.lockQueueMutex()
 	defer s.unlockQueueMutex()
 	for _, msg := range s.LocalQueue {
-		if !(msg.GetKey() == "LastValue") {
+		if msg.GetKey() != "LastValue" {
 			return false
 		}
 	}
