@@ -98,6 +98,31 @@ type Response struct {
 	GetValue string
 } //Risposta per la consistenza causale
 
+type ResponseOperation interface {
+	SetDone(bool)
+	GetDone() bool
+	SetValue(bool)
+	GetResponseValue() bool
+}
+
+// Implementazione dell'interfaccia ResponseOperation
+
+func (r *Response) SetDone(done bool) {
+	r.Done = done
+}
+
+func (r *Response) GetDone() bool {
+	return r.Done
+}
+
+func (r *Response) SetValue(value string) {
+	r.GetValue = value
+}
+
+func (r *Response) GetResponseValue() string {
+	return r.GetValue
+}
+
 type ClientMessage struct {
 	ClientId            int //Id del server che mi invierà i messaggi per tutta la durata dell'invio
 	ActualNumberMessage int //Il messaggio che mi aspetto di ricevere

@@ -48,7 +48,7 @@ func (s *ServerSequential) SequentialSendElement(message common.MessageSequentia
 		return errAnswer2
 	}
 
-	response.Done = answerProcess.Done
+	response.SetDone(answerProcess.GetDone())
 	return nil
 }
 
@@ -84,11 +84,11 @@ func (s *ServerSequential) sendToOtherServers(message common.MessageSequential, 
 
 	for i := 0; i < len(addresses.Addresses); i++ {
 		reply := <-ch
-		if !reply.Done {
+		if !reply.GetDone() {
 			return fmt.Errorf("error saving message in the queue")
 		}
 	}
-	response.Done = true
+	response.SetDone(true)
 	return nil
 }
 
@@ -141,7 +141,7 @@ func (s *ServerSequential) SaveMessageQueue(message common.MessageSequential, re
 
 	for i := 0; i < len(addresses.Addresses); i++ {
 		response := <-ch
-		if !response.Done {
+		if !response.GetDone() {
 			return fmt.Errorf("error saving message in the queue")
 		}
 	}
@@ -155,10 +155,10 @@ func (s *ServerSequential) SaveMessageQueue(message common.MessageSequential, re
 		return fmt.Errorf("error in sending to application")
 	}
 
-	if response.Done != true {
+	if response.GetDone() != true {
 		return fmt.Errorf("not deliverable message with key: %s", message.MessageBase.Key)
 	}
-	reply.Done = true
+	reply.SetDone(true)
 	return nil
 }
 
@@ -204,7 +204,7 @@ func (s *ServerSequential) SequentialSendAck(messageAck AckMessage, result *comm
 		}
 	}
 	s.unlockQueueMutex()
-	result.Done = isInQueue
+	result.SetDone(isInQueue)
 	return nil
 }
 
@@ -218,7 +218,7 @@ func (s *ServerSequential) applicationDeliveryCondition(message common.MessageSe
 	for {
 		s.checkQueue(message, ch)
 		result := <-ch
-		if result.Done {
+		if result.GetDone() {
 
 			//Se la prima condizione è valida, valutiamo la seconda
 			if s.checkSecondCondition(message) == true || s.lastValue() == true {
@@ -239,7 +239,7 @@ func (s *ServerSequential) applicationDeliveryCondition(message common.MessageSe
 	if err != nil {
 		return fmt.Errorf("error in sending to application")
 	}
-	response.Done = reply.Done
+	response.SetDone(reply.GetDone())
 	return nil
 }
 
@@ -285,7 +285,7 @@ func (s *ServerSequential) checkQueue(message common.MessageSequential, ch chan 
 func (s *ServerSequential) sendToApplication(message common.MessageSequential, reply *common.Response) error {
 	replyUpdate := s.BaseServer.createResponse()
 	s.updateQueue(message, replyUpdate) //Rimuovo il primo messaggio dalla coda
-	if replyUpdate.Done == false {
+	if replyUpdate.GetDone() == false {
 		return fmt.Errorf("error in removing message from the queue")
 	}
 
@@ -295,26 +295,26 @@ func (s *ServerSequential) sendToApplication(message common.MessageSequential, r
 	if err != nil {
 		return fmt.Errorf("error in updating the dataStore")
 	} //Aggiorno il dataStore
-	if replyDataStore.Done == false {
+	if replyDataStore.GetDone() == false {
 		return fmt.Errorf("error in updating the dataStore")
 	}
 	//Tutti i server aggiornano il clock, tranne colui che l'ha inviato perché l'ha già aggiornato inizialmente
 	//Per poterlo assegnare al messaggio
 	s.incrementClockReceive(message)
-	reply.Done = true
+	reply.SetDone(true)
 	return nil
 }
 
 func (s *ServerSequential) updateDataStore(message common.MessageSequential, reply *common.Response) error {
-	reply.Done = false
+	reply.SetDone(false)
 	if message.MessageBase.OperationType == 1 {
 		s.sequentialAddElementDatastore(message)
 		log.Println("ESEGUITA, PROVENIENTE DA SERVER: ", message.GetServerID(), "azione di put per messaggio con key: ", message.GetKey(), " e value: ", message.GetValue())
-		reply.Done = true
+		reply.SetDone(true)
 	} else if message.MessageBase.OperationType == 2 {
 		s.sequentialDeleteElementDatastore(message)
 		log.Println("ESEGUITA, PROVENIENTE DA SERVER: ", message.GetServerID(), "azione di delete per messaggio con key: ", message.GetKey())
-		reply.Done = true
+		reply.SetDone(true)
 	} else if message.GetOperationType() == 3 && message.GetServerID() == MyId {
 		responseGet := s.BaseServer.createResponse()
 		errGet := s.SequentialGetElement(message.MessageBase, responseGet)
@@ -322,11 +322,11 @@ func (s *ServerSequential) updateDataStore(message common.MessageSequential, rep
 			return errGet
 		}
 		log.Println("ESEGUITA, PROVENIENTE DA SERVER: ", message.GetServerID(), "azione di get per messaggio con key: ", message.GetKey(), "e value: ", responseGet.GetValue)
-		reply.Done = true
+		reply.SetDone(true)
 	} else if message.GetOperationType() == 3 && message.GetServerID() != MyId {
-		reply.Done = true
+		reply.SetDone(true)
 	} else {
-		reply.Done = true
+		reply.SetDone(true)
 	}
 	return nil
 }
@@ -336,7 +336,7 @@ func (s *ServerSequential) SequentialGetElement(message common.Message, reply *c
 	s.BaseServer.myDatastoreMutex.Lock()
 	if value, ok := s.BaseServer.DataStore[message.Key]; ok {
 		reply.GetValue = value
-		reply.Done = true
+		reply.SetDone(true)
 		s.BaseServer.myDatastoreMutex.Unlock()
 		return nil
 	} else {
