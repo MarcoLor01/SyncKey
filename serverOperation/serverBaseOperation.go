@@ -157,9 +157,10 @@ func (s *ServerBase) canAnswer(message *common.Message, reply *common.Response) 
 			return nil
 
 		} else {
+			log.Println("BLOCCATO QUI MEX: ", message.IdMessage, "DA: ", message.IdMessageClient, " ACTUAL: ", s.myClientMessage[message.IdMessageClient-1].ActualAnswerMessage, " CLIENT: ", message.IdMessage)
 			// Rilascia temporaneamente il lockClockMutex prima di dormire
 			s.myClientMutex[message.IdMessageClient-1].Unlock()
-			time.Sleep(1 * time.Second)
+			time.Sleep(500 * time.Millisecond)
 			s.myClientMutex[message.IdMessageClient-1].Lock()
 		}
 	}

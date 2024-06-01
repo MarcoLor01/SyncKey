@@ -15,22 +15,19 @@ func (s *ServerSequential) SequentialSendElement(message common.MessageSequentia
 	//Aggiorno il mio clock scalare e lo allego al messaggio da inviare a tutti i server
 	//Genero inoltre un ID univoco e lo allego al messaggio insieme al mio ID, in questo modo tutti sapranno in ogni momento chi ha generato il messaggio
 	responseProcess := s.BaseServer.createResponse()
-	errChan := make(chan error, 1)
-	go func() {
-		err := s.BaseServer.canProcess(message.GetMessageBase(), responseProcess)
-		errChan <- err
-	}()
 
-	// Attendere e gestire l'errore dalla goroutine
-	if err := <-errChan; err != nil {
+	err := s.BaseServer.canProcess(message.GetMessageBase(), responseProcess)
+
+	if err != nil {
 		return err
 	}
+
 	s.prepareMessage(&message)
 	reply := s.BaseServer.createResponse()
 
 	//Vado a informare tutti i server del messaggio che ho ricevuto
-	err := s.sendToOtherServers(message, reply)
-	if err != nil {
+	errSend := s.sendToOtherServers(message, reply)
+	if errSend != nil {
 		return fmt.Errorf("SequentialSendElement: error sending to other servers: %v", err)
 	}
 
@@ -101,20 +98,6 @@ func (s *ServerSequential) sequentialSendToSingleServer(addr string, message *co
 
 func (s *ServerSequential) SaveMessageQueue(message common.MessageSequential, reply *common.Response) error {
 
-	//Controllo se posso processare i messaggi che ricevo dall'esterno
-	if message.GetServerID() != MyId {
-		responseProcess := s.BaseServer.createResponse()
-		errChan := make(chan error, 1)
-		go func() {
-			err := s.BaseServer.canProcess(message.GetMessageBase(), responseProcess)
-			errChan <- err
-		}()
-
-		// Attendere e gestire l'errore dalla goroutine
-		if err := <-errChan; err != nil {
-			return err
-		}
-	}
 	//Aggiungo il messaggio in coda
 	s.addToQueueSequential(message)
 
@@ -312,6 +295,13 @@ func (s *ServerSequential) sendToApplication(message common.MessageSequential, r
 
 func (s *ServerSequential) updateDataStore(message common.MessageSequential, reply *common.Response) error {
 	reply.SetDone(false)
+	replyAnswer := s.BaseServer.createResponse()
+
+	err := s.BaseServer.canAnswer(message.GetMessageBase(), replyAnswer)
+	if err != nil {
+		return err
+	}
+
 	if message.MessageBase.OperationType == 1 {
 
 		s.sequentialAddElementDatastore(message)
@@ -325,7 +315,7 @@ func (s *ServerSequential) updateDataStore(message common.MessageSequential, rep
 		reply.SetDone(true)
 
 	} else if message.GetOperationType() == 3 && message.GetServerID() == MyId {
-
+		//CAN ANSWER HERE
 		responseGet := s.BaseServer.createResponse()
 		errGet := s.SequentialGetElement(message.MessageBase, responseGet)
 		if errGet != nil {
