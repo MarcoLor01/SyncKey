@@ -89,8 +89,61 @@ func (m *MessageSequential) SetID(value string) {
 type MessageCausal struct {
 	MessageBase     Message
 	VectorTimestamp []int
-	ServerId        int
 	IdUnique        string
+}
+
+type MessageCausalOperation interface {
+	GetKey() string
+	GetMessageBase() Message
+	GetTimestamp() int
+	SetTimestamp(int)
+	IncrementNumberAck()
+	GetID() string
+	SetServerID(int)
+	GetServerID() int
+	SetID(string)
+	GetValue() string
+	GetOperationType(int)
+}
+
+func (m *MessageCausal) GetOperationType() int {
+	return m.MessageBase.OperationType
+}
+
+func (m *MessageCausal) GetValue() string {
+	return m.MessageBase.Value
+}
+
+func (m *MessageCausal) GetServerID() int {
+	return m.MessageBase.ServerId
+}
+
+func (m *MessageCausal) SetServerID(id int) {
+	m.MessageBase.ServerId = id
+}
+
+func (m *MessageCausal) GetKey() string {
+	return m.MessageBase.Key
+}
+
+func (m *MessageCausal) SetTimestamp(value []int) {
+	m.VectorTimestamp = value
+}
+
+func (m *MessageCausal) GetMessageBase() *Message {
+	return &m.MessageBase
+}
+
+func (m *MessageCausal) GetTimestamp() []int {
+	return m.VectorTimestamp
+}
+
+func (m *MessageCausal) GetID() string {
+	return m.IdUnique
+}
+
+func (m *MessageCausal) SetID(value string) {
+	m.IdUnique = value
 }
 
 type Response struct {

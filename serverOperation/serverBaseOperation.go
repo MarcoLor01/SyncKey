@@ -128,13 +128,15 @@ func (s *ServerBase) InitializeMessageClients(numberClients int) {
 //L'arrivo dei/del messaggi/o che lo precede/precedono
 
 func (s *ServerBase) canProcess(message *common.Message, reply *common.Response) error {
+
 	s.myClientMutex[message.IdMessageClient-1].Lock()
-	defer s.myClientMutex[message.IdMessageClient-1].Unlock()
 
 	for {
 		if message.IdMessage == s.myClientMessage[message.IdMessageClient-1].ActualNumberMessage {
 			s.myClientMessage[message.IdMessageClient-1].ActualNumberMessage++
+
 			reply.Done = true
+			s.myClientMutex[message.IdMessageClient-1].Unlock()
 			return nil
 		} else {
 			// Rilascia temporaneamente il lockClockMutex prima di dormire

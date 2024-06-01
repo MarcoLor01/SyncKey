@@ -34,21 +34,7 @@ func (s *ServerSequential) SequentialSendElement(message common.MessageSequentia
 		return fmt.Errorf("SequentialSendElement: error sending to other servers: %v", err)
 	}
 
-	errAnswerChan := make(chan error, 1)
-	answerProcess := s.BaseServer.createResponse()
-
-	go func() {
-		errAnswer := s.BaseServer.canAnswer(message.GetMessageBase(), answerProcess)
-		errAnswerChan <- errAnswer
-	}()
-
-	// Attendere e gestire l'errore dalla goroutine
-
-	if errAnswer2 := <-errAnswerChan; errAnswer2 != nil {
-		return errAnswer2
-	}
-
-	response.SetDone(answerProcess.GetDone())
+	response.SetDone(reply.GetDone())
 	return nil
 }
 
@@ -69,7 +55,9 @@ func (s *ServerSequential) prepareMessage(message *common.MessageSequential) {
 
 func (s *ServerSequential) sendToOtherServers(message common.MessageSequential, response *common.Response) error {
 	ch := make(chan common.Response, len(addresses.Addresses))
+
 	// Usiamo un errgroup.Group per la gestione degli errori all'interno delle goroutine
+
 	var g errgroup.Group
 	for _, address := range addresses.Addresses {
 		addr := address.Addr // Capture the loop variable
@@ -81,7 +69,7 @@ func (s *ServerSequential) sendToOtherServers(message common.MessageSequential, 
 	if err := g.Wait(); err != nil {
 		return fmt.Errorf("error sending to other servers: %v", err)
 	}
-
+	close(ch)
 	for i := 0; i < len(addresses.Addresses); i++ {
 		reply := <-ch
 		if !reply.GetDone() {
@@ -101,18 +89,32 @@ func (s *ServerSequential) sequentialSendToSingleServer(addr string, message *co
 	defer closeClient(client)
 
 	reply := s.BaseServer.createResponse()
+
 	if err1 := client.Call("ServerSequential.SaveMessageQueue", message, reply); err1 != nil {
 		return fmt.Errorf("error in saving message in the queue: %w", err1)
 	}
 
 	ch <- *reply
+
 	return nil
 }
 
 func (s *ServerSequential) SaveMessageQueue(message common.MessageSequential, reply *common.Response) error {
 
-	//QUA CONTROLLO SE POSSO PROCESSARE
+	//Controllo se posso processare i messaggi che ricevo dall'esterno
+	if message.GetServerID() != MyId {
+		responseProcess := s.BaseServer.createResponse()
+		errChan := make(chan error, 1)
+		go func() {
+			err := s.BaseServer.canProcess(message.GetMessageBase(), responseProcess)
+			errChan <- err
+		}()
 
+		// Attendere e gestire l'errore dalla goroutine
+		if err := <-errChan; err != nil {
+			return err
+		}
+	}
 	//Aggiungo il messaggio in coda
 	s.addToQueueSequential(message)
 
@@ -283,8 +285,11 @@ func (s *ServerSequential) checkQueue(message common.MessageSequential, ch chan 
 }
 
 func (s *ServerSequential) sendToApplication(message common.MessageSequential, reply *common.Response) error {
+
 	replyUpdate := s.BaseServer.createResponse()
+
 	s.updateQueue(message, replyUpdate) //Rimuovo il primo messaggio dalla coda
+
 	if replyUpdate.GetDone() == false {
 		return fmt.Errorf("error in removing message from the queue")
 	}
@@ -308,14 +313,19 @@ func (s *ServerSequential) sendToApplication(message common.MessageSequential, r
 func (s *ServerSequential) updateDataStore(message common.MessageSequential, reply *common.Response) error {
 	reply.SetDone(false)
 	if message.MessageBase.OperationType == 1 {
+
 		s.sequentialAddElementDatastore(message)
 		log.Println("ESEGUITA, PROVENIENTE DA SERVER: ", message.GetServerID(), "azione di put per messaggio con key: ", message.GetKey(), " e value: ", message.GetValue())
 		reply.SetDone(true)
+
 	} else if message.MessageBase.OperationType == 2 {
+
 		s.sequentialDeleteElementDatastore(message)
 		log.Println("ESEGUITA, PROVENIENTE DA SERVER: ", message.GetServerID(), "azione di delete per messaggio con key: ", message.GetKey())
 		reply.SetDone(true)
+
 	} else if message.GetOperationType() == 3 && message.GetServerID() == MyId {
+
 		responseGet := s.BaseServer.createResponse()
 		errGet := s.SequentialGetElement(message.MessageBase, responseGet)
 		if errGet != nil {
@@ -342,7 +352,6 @@ func (s *ServerSequential) SequentialGetElement(message common.Message, reply *c
 	} else {
 		s.BaseServer.myDatastoreMutex.Unlock()
 	}
-	time.Sleep(200 * time.Millisecond)
 	return nil
 
 }

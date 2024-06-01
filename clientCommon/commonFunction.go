@@ -85,9 +85,10 @@ func HandleDeleteAction(consistency int, key string, config Config, serverNumber
 
 //Azione di get
 
-func HandleGetAction(consistency int, key string, client *rpc.Client, idMessageClient int, idMessage int) error {
+func HandleGetAction(consistency int, key string, config Config, client *rpc.Client, idMessageClient int, idMessage int) error {
 	if consistency == 0 {
-		err := getElementFromDsCausal(key, client, idMessageClient, idMessage)
+
+		err := getElementFromDsCausal(key, config, client, idMessageClient, idMessage)
 		if err != nil {
 			return fmt.Errorf(datastoreGetError+": %w", err)
 		}
@@ -134,8 +135,6 @@ func addElementToDsCausal(key string, value string, config Config, serverNumber 
 	var n1, n2 string
 	n1 = key
 	n2 = value
-
-	printAdd(n1, n2, config, serverNumber)
 	message := common.Message{Key: n1, Value: n2, OperationType: 1, IdMessageClient: idMessageClient, IdMessage: idMessage}
 	args := common.MessageCausal{MessageBase: message, VectorTimestamp: make([]int, len(config.Address))}
 
@@ -205,27 +204,23 @@ func deleteElementFromDsCausal(key string, config Config, serverNumber int, clie
 
 //Funzione per recuperare un elemento in versione causale
 
-func getElementFromDsCausal(key string, client *rpc.Client, idMessageClient int, idMessage int) error {
+func getElementFromDsCausal(key string, config Config, client *rpc.Client, idMessageClient int, idMessage int) error {
 
-	var returnValue string
-	args := common.Message{
-		Key:             key,
-		IdMessageClient: idMessageClient,
-		IdMessage:       idMessage,
-	}
-	err := client.Call("ServerCausal.CausalGetElement", args, &returnValue)
+	message := common.Message{Key: key, OperationType: 3, IdMessageClient: idMessageClient, IdMessage: idMessage}
+	args := common.MessageCausal{MessageBase: message, VectorTimestamp: make([]int, len(config.Address))}
+	reply := common.Response{Done: false}
+	err := client.Call("ServerCausal.CausalSendElement", args, &reply)
 
 	fmt.Println("Get element with Key: ", key)
-	fmt.Println("Value: ", returnValue)
 
 	if err != nil {
 		return fmt.Errorf(datastoreError+": %w", err)
 	}
 
-	if returnValue != "" {
-		log.Printf("Element with Key %s, have value: %s", args.Key, returnValue)
+	if reply.Done != false {
+		printKeySuccessful(key, GetOperationString(Operation(message.OperationType)), idMessageClient)
 	} else {
-		log.Printf("No element with Key: %s\n", key)
+		printKeyFail(key, GetOperationString(Operation(message.OperationType)), idMessageClient)
 	}
 	return nil
 }

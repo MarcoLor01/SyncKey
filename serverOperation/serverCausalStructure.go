@@ -34,14 +34,10 @@ func InitializeServerCausal() *ServerCausal {
 }
 
 func (s *ServerCausal) prepareMessage(message *common.MessageCausal) {
-	message.VectorTimestamp = s.MyClock
-	message.ServerId = MyId
-	message.IdUnique = generateUniqueID()
-}
-
-func (s *ServerCausal) incrementMyTimestamp() {
 	s.myClockMutex.Lock()
-	s.MyClock[MyId-1] += 1
+	copy(message.VectorTimestamp, s.MyClock)
+	message.MessageBase.ServerId = MyId
+	message.IdUnique = generateUniqueID()
 	s.myClockMutex.Unlock()
 }
 
@@ -67,9 +63,13 @@ func (s *ServerCausal) removeFromQueueDeletingCausal(message common.MessageCausa
 
 func (s *ServerCausal) removeFromQueueCausal(message common.MessageCausal) error {
 	var isHere bool
+	s.myQueueMutex.Lock()
+	defer s.myQueueMutex.Unlock()
 	for i, msg := range s.LocalQueue {
 		if message.IdUnique == msg.IdUnique {
+			s.BaseServer.myDatastoreMutex.Lock()
 			s.BaseServer.DataStore[msg.MessageBase.Key] = msg.MessageBase.Value
+			s.BaseServer.myDatastoreMutex.Unlock()
 			s.LocalQueue = append(s.LocalQueue[:i], s.LocalQueue[i+1:]...)
 			isHere = true
 			break
@@ -81,13 +81,17 @@ func (s *ServerCausal) removeFromQueueCausal(message common.MessageCausal) error
 	return nil
 }
 
-func (s *ServerCausal) checkCondition(message *common.MessageCausal, mod bool) bool {
-
-	if MyId == message.ServerId {
-		mod = message.VectorTimestamp[message.ServerId-1] == s.MyClock[message.ServerId-1]
-	} else {
-		mod = message.VectorTimestamp[message.ServerId-1] == s.MyClock[message.ServerId-1]+1
+func (s *ServerCausal) checkCondition(message common.MessageCausal, mod bool) bool {
+	if MyId != message.GetServerID() {
+		mod = message.VectorTimestamp[message.GetServerID()-1] == s.MyClock[message.GetServerID()-1]+1
+	} else if MyId == message.GetServerID() {
+		mod = true
 	}
+	//if mod {
+	//	log.Println("Condizione verificata per messaggio con op: ", message.GetOperationType(), "proveniente da: ", message.MessageBase.IdMessageClient, "con ID: ", message.GetID())
+	//} else {
+	//	log.Println("Condizione NON verificata per messaggio con op: ", message.GetOperationType(), "proveniente da: ", message.MessageBase.IdMessageClient, "con ID: ", message.GetID())
+	//}
 	return mod
 }
 
@@ -95,17 +99,15 @@ func (s *ServerBase) createResponse() *common.Response {
 	return &common.Response{Done: false, GetValue: ""}
 }
 
-func (s *ServerCausal) incrementClockReceive(message *common.MessageCausal) {
+func (s *ServerCausal) incrementClockReceive(message common.MessageCausal) {
 	//Aggiorno il clock come max(t[k],V_j[k]
-	for ind, ts := range message.VectorTimestamp {
-		if ts > s.MyClock[ind] {
-			s.MyClock[ind] = ts
+	s.myClockMutex.Lock()
+	for ind := range message.VectorTimestamp {
+		if message.VectorTimestamp[ind] > s.MyClock[ind] {
+			s.MyClock[ind] = message.VectorTimestamp[ind]
 		}
 	}
-	//Se non sono stato io a inviare il messaggio, incremento di uno la mia variabile
-	if MyId != message.ServerId {
-		message.VectorTimestamp[MyId-1]++
-	}
+	s.myClockMutex.Unlock()
 }
 
 func InitializeAndRegisterServerCausal(server *rpc.Server, numberClients int) {
@@ -115,4 +117,10 @@ func InitializeAndRegisterServerCausal(server *rpc.Server, numberClients int) {
 		log.Fatal("Format of service SyncKey is not correct: ", err)
 	}
 	myServer.BaseServer.InitializeMessageClients(numberClients)
+}
+
+func (s *ServerCausal) incrementMyTimestamp() {
+	s.myClockMutex.Lock()
+	s.MyClock[MyId-1]++
+	s.myClockMutex.Unlock()
 }
