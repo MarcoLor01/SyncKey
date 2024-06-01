@@ -130,7 +130,7 @@ func switchAction(actionToDo, key, value string, consistency int, serverNumber i
 		os.Exit(-1)
 
 	case "put":
-		err := clientCommon.HandlePutAction(consistency, key, value, config, serverNumber, client, 1, actualIdMessage)
+		err := clientCommon.HandlePutAction(consistency, key, value, config, client, 1, actualIdMessage)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -142,7 +142,7 @@ func switchAction(actionToDo, key, value string, consistency int, serverNumber i
 		}
 		actualIdMessage++
 	case "get":
-		err := clientCommon.HandleGetAction(consistency, key, client, 1, actualIdMessage)
+		err := clientCommon.HandleGetAction(consistency, key, config, client, 1, actualIdMessage)
 		if err != nil {
 			log.Fatal(err)
 		}

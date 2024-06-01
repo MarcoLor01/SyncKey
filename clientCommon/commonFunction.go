@@ -51,14 +51,14 @@ func GetOperationString(op Operation) string {
 
 //Azione di put
 
-func HandlePutAction(consistency int, key string, value string, config Config, serverNumber int, client *rpc.Client, idMessageClient int, idMessage int) error {
+func HandlePutAction(consistency int, key string, value string, config Config, client *rpc.Client, idMessageClient int, idMessage int) error {
 	if consistency == 0 {
-		err := addElementToDsCausal(key, value, config, serverNumber, client, idMessageClient, idMessage)
+		err := addElementToDsCausal(key, value, config, client, idMessageClient, idMessage)
 		if err != nil {
 			return fmt.Errorf(datastoreError+": %w", err)
 		}
 	} else {
-		err := addElementToDsSequential(key, value, config, serverNumber, client, idMessageClient, idMessage)
+		err := addElementToDsSequential(key, value, client, idMessageClient, idMessage)
 		if err != nil {
 			return fmt.Errorf(datastoreError+": %w", err)
 		}
@@ -103,7 +103,7 @@ func HandleGetAction(consistency int, key string, config Config, client *rpc.Cli
 
 //Azione di put con consistenza sequenziale
 
-func addElementToDsSequential(key string, value string, config Config, serverNumber int, client *rpc.Client, idMessageClient int, idMessage int) error {
+func addElementToDsSequential(key string, value string, client *rpc.Client, idMessageClient int, idMessage int) error {
 
 	var n1, n2 string
 	n1 = key
@@ -130,7 +130,7 @@ func addElementToDsSequential(key string, value string, config Config, serverNum
 
 //Funzione per aggiungere un elemento con consistenza causale
 
-func addElementToDsCausal(key string, value string, config Config, serverNumber int, client *rpc.Client, idMessageClient int, idMessage int) error {
+func addElementToDsCausal(key string, value string, config Config, client *rpc.Client, idMessageClient int, idMessage int) error {
 
 	var n1, n2 string
 	n1 = key
@@ -297,11 +297,6 @@ func CloseClient(client *rpc.Client) {
 	if err != nil {
 		log.Println("Error closing the client:", err)
 	}
-}
-
-func printAdd(n1 string, n2 string, config Config, serverNumber int) {
-	log.Printf("Adding element with Key: %s, and Value: %s contacting %s", n1, n2, config.Address[serverNumber].Addr)
-
 }
 
 func printPutSuccessful(key, value string, idServer int) {
