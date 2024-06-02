@@ -24,8 +24,13 @@ func (s *ServerCausal) CausalSendElement(message common.MessageCausal, reply *co
 	//Messaggio pronto all'invio, inoltro con un messaggio Multicast a tutti gli altri server
 	response := s.BaseServer.createResponse()
 	errSend := s.causalSendToOtherServers(message, response)
+
 	if errSend != nil {
 		return fmt.Errorf("CausalSendElement: error sending to other servers: %v", err)
+	}
+
+	if message.GetOperationType() == 3 && response.GetDone() {
+		reply.SetValue(response.GetResponseValue())
 	}
 
 	reply.SetDone(response.GetDone())
@@ -53,6 +58,11 @@ func (s *ServerCausal) causalSendToOtherServers(message common.MessageCausal, re
 		if !response.GetDone() {
 			return fmt.Errorf("error in the save of the message")
 		}
+
+		if message.GetOperationType() == 3 && response.GetDone() && response.GetResponseValue() != "" {
+			reply.SetValue(response.GetResponseValue())
+		}
+
 	}
 
 	reply.SetDone(true)
@@ -73,7 +83,11 @@ func (s *ServerCausal) causalSendToSingleServer(addr string, message common.Mess
 		return fmt.Errorf("error in saving message in the queue: %w", err1)
 	}
 
-	ch <- *reply
+	if message.GetOperationType() == 3 {
+		ch <- common.Response{Done: reply.GetDone(), GetValue: reply.GetResponseValue()}
+	} else {
+		ch <- *reply
+	}
 
 	return nil
 }
@@ -106,6 +120,10 @@ func (s *ServerCausal) SaveMessageQueue(message common.MessageCausal, reply *com
 		return err
 	}
 
+	if message.GetOperationType() == 3 && responseToSend.GetDone() && message.GetServerID() == MyId {
+		reply.SetValue(responseToSend.GetResponseValue())
+	}
+
 	reply.SetDone(responseToSend.GetDone())
 
 	return nil
@@ -132,14 +150,26 @@ func (s *ServerCausal) checkIfDeliverable(message common.MessageCausal, reply *c
 			for index := range message.GetTimestamp() {
 				if (index != message.GetServerID()-1) && (index != MyId-1) && ((message.GetTimestamp())[index] > s.MyClock[index]) {
 					response.SetDone(false)
-
 					break
 				}
 				response.SetDone(true)
 			}
 		}
+
 		if message.GetServerID() == MyId {
 			response.SetDone(true)
+		}
+
+		//Se è un evento di lettura attendo finché non viene scritto un valore sulla mia key
+
+		if message.GetOperationType() == 3 && response.GetDone() == true {
+			s.BaseServer.myDatastoreMutex.Lock()
+			if value, ok := s.BaseServer.DataStore[message.GetKey()]; ok {
+				reply.SetValue(value)
+			} else {
+				response.SetDone(false)
+			}
+			s.BaseServer.myDatastoreMutex.Unlock()
 		}
 
 		if response.GetDone() {
@@ -147,7 +177,6 @@ func (s *ServerCausal) checkIfDeliverable(message common.MessageCausal, reply *c
 			s.myClockMutex.Unlock()
 			return
 		} else {
-			log.Println("Fallisce per elemento con timestamp: ", message.GetTimestamp(), "mio timestamp: ", s.MyClock, "e serverID: ", message.GetServerID(), "numero: ", message.MessageBase.IdMessage)
 			s.myClockMutex.Unlock()
 			time.Sleep(1 * time.Second) //Riprova dopo 1 secondo
 			s.myClockMutex.Lock()
@@ -157,6 +186,14 @@ func (s *ServerCausal) checkIfDeliverable(message common.MessageCausal, reply *c
 
 func (s *ServerCausal) sendMessageToApplication(message common.MessageCausal, reply *common.Response) error {
 	s.incrementClockReceive(message)
+
+	replyAnswer := s.BaseServer.createResponse()
+
+	err := s.BaseServer.canAnswer(message.GetMessageBase(), replyAnswer)
+	if err != nil {
+		return err
+	}
+
 	if message.MessageBase.OperationType == 1 {
 
 		err := s.removeFromQueueCausal(message)
@@ -182,7 +219,7 @@ func (s *ServerCausal) sendMessageToApplication(message common.MessageCausal, re
 		}
 		log.Println("ESEGUITA, PROVENIENTE DA SERVER: ", message.GetServerID(), "azione di get per messaggio con key: ", message.GetKey(), "e value: ", responseGet.GetValue)
 		reply.SetDone(true)
-
+		reply.SetValue(responseGet.GetResponseValue())
 	} else if message.MessageBase.OperationType == 3 {
 		reply.SetDone(true)
 

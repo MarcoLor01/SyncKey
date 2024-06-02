@@ -31,6 +31,10 @@ func (s *ServerSequential) SequentialSendElement(message common.MessageSequentia
 		return fmt.Errorf("SequentialSendElement: error sending to other servers: %v", err)
 	}
 
+	if message.GetOperationType() == 3 && reply.GetDone() {
+		response.SetValue(reply.GetResponseValue())
+	}
+
 	response.SetDone(reply.GetDone())
 	return nil
 }
@@ -72,7 +76,12 @@ func (s *ServerSequential) sendToOtherServers(message common.MessageSequential, 
 		if !reply.GetDone() {
 			return fmt.Errorf("error saving message in the queue")
 		}
+
+		if message.GetOperationType() == 3 && reply.GetDone() && message.GetServerID() == MyId && reply.GetResponseValue() != "" {
+			response.SetValue(reply.GetResponseValue())
+		}
 	}
+
 	response.SetDone(true)
 	return nil
 }
@@ -91,7 +100,11 @@ func (s *ServerSequential) sequentialSendToSingleServer(addr string, message *co
 		return fmt.Errorf("error in saving message in the queue: %w", err1)
 	}
 
-	ch <- *reply
+	if message.GetOperationType() == 3 && message.GetServerID() == MyId {
+		ch <- common.Response{Done: reply.GetDone(), GetValue: reply.GetResponseValue()}
+	} else {
+		ch <- *reply
+	}
 
 	return nil
 }
@@ -144,6 +157,7 @@ func (s *ServerSequential) SaveMessageQueue(message common.MessageSequential, re
 		return fmt.Errorf("not deliverable message with key: %s", message.MessageBase.Key)
 	}
 	reply.SetDone(true)
+	reply.SetValue(response.GetResponseValue())
 	return nil
 }
 
@@ -224,7 +238,9 @@ func (s *ServerSequential) applicationDeliveryCondition(message common.MessageSe
 	if err != nil {
 		return fmt.Errorf("error in sending to application")
 	}
+
 	response.SetDone(reply.GetDone())
+	response.SetValue(reply.GetResponseValue())
 	return nil
 }
 
@@ -273,7 +289,7 @@ func (s *ServerSequential) sendToApplication(message common.MessageSequential, r
 
 	s.updateQueue(message, replyUpdate) //Rimuovo il primo messaggio dalla coda
 
-	if replyUpdate.GetDone() == false {
+	if !replyUpdate.GetDone() {
 		return fmt.Errorf("error in removing message from the queue")
 	}
 
@@ -283,13 +299,14 @@ func (s *ServerSequential) sendToApplication(message common.MessageSequential, r
 	if err != nil {
 		return fmt.Errorf("error in updating the dataStore")
 	} //Aggiorno il dataStore
-	if replyDataStore.GetDone() == false {
+	if !replyDataStore.GetDone() {
 		return fmt.Errorf("error in updating the dataStore")
 	}
 	//Tutti i server aggiornano il clock, tranne colui che l'ha inviato perché l'ha già aggiornato inizialmente
 	//Per poterlo assegnare al messaggio
 	s.incrementClockReceive(message)
 	reply.SetDone(true)
+	reply.SetValue(replyDataStore.GetResponseValue())
 	return nil
 }
 
@@ -315,14 +332,17 @@ func (s *ServerSequential) updateDataStore(message common.MessageSequential, rep
 		reply.SetDone(true)
 
 	} else if message.GetOperationType() == 3 && message.GetServerID() == MyId {
-		//CAN ANSWER HERE
+
 		responseGet := s.BaseServer.createResponse()
 		errGet := s.SequentialGetElement(message.MessageBase, responseGet)
 		if errGet != nil {
 			return errGet
 		}
+
 		log.Println("ESEGUITA, PROVENIENTE DA SERVER: ", message.GetServerID(), "azione di get per messaggio con key: ", message.GetKey(), "e value: ", responseGet.GetValue)
 		reply.SetDone(true)
+		reply.SetValue(responseGet.GetResponseValue())
+
 	} else if message.GetOperationType() == 3 && message.GetServerID() != MyId {
 		reply.SetDone(true)
 	} else {
@@ -342,7 +362,7 @@ func (s *ServerSequential) SequentialGetElement(message common.Message, reply *c
 	} else {
 		s.BaseServer.myDatastoreMutex.Unlock()
 	}
-	return nil
+	return fmt.Errorf("value for this key not found")
 
 }
 

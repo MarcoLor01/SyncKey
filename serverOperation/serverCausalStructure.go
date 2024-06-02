@@ -87,11 +87,7 @@ func (s *ServerCausal) checkCondition(message common.MessageCausal, mod bool) bo
 	} else if MyId == message.GetServerID() {
 		mod = true
 	}
-	//if mod {
-	//	log.Println("Condizione verificata per messaggio con op: ", message.GetOperationType(), "proveniente da: ", message.MessageBase.IdMessageClient, "con ID: ", message.GetID())
-	//} else {
-	//	log.Println("Condizione NON verificata per messaggio con op: ", message.GetOperationType(), "proveniente da: ", message.MessageBase.IdMessageClient, "con ID: ", message.GetID())
-	//}
+
 	return mod
 }
 

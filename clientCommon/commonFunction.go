@@ -68,14 +68,14 @@ func HandlePutAction(consistency int, key string, value string, config Config, c
 
 //Azione di delete
 
-func HandleDeleteAction(consistency int, key string, config Config, serverNumber int, client *rpc.Client, idMessageClient int, idMessage int) error {
+func HandleDeleteAction(consistency int, key string, config Config, client *rpc.Client, idMessageClient int, idMessage int) error {
 	if consistency == 0 {
-		err := deleteElementFromDsCausal(key, config, serverNumber, client, idMessageClient, idMessage)
+		err := deleteElementFromDsCausal(key, config, client, idMessageClient, idMessage)
 		if err != nil {
 			return fmt.Errorf(datastoreDeleteError+": %w", err)
 		}
 	} else {
-		err := deleteElementFromDsSequential(key, config, serverNumber, client, idMessageClient, idMessage)
+		err := deleteElementFromDsSequential(key, client, idMessageClient, idMessage)
 		if err != nil {
 			return fmt.Errorf(datastoreDeleteError+": %w", err)
 		}
@@ -156,10 +156,9 @@ func addElementToDsCausal(key string, value string, config Config, client *rpc.C
 
 //Funzione per aggiungere un elemento con consistenza sequenziale
 
-func deleteElementFromDsSequential(key string, config Config, serverNumber int, client *rpc.Client, idMessageClient int, idMessage int) error {
+func deleteElementFromDsSequential(key string, client *rpc.Client, idMessageClient int, idMessage int) error {
 	n1 := key
 
-	log.Printf("Get element with Key: %s contacting %s", n1, config.Address[serverNumber].Addr)
 	message := common.Message{Key: n1, OperationType: 2, IdMessageClient: idMessageClient, IdMessage: idMessage}
 	args := common.MessageSequential{MessageBase: message}
 	result := common.Response{Done: false}
@@ -180,10 +179,9 @@ func deleteElementFromDsSequential(key string, config Config, serverNumber int, 
 
 //Funzione per eliminare un elemento con consistenza causale
 
-func deleteElementFromDsCausal(key string, config Config, serverNumber int, client *rpc.Client, idMessageClient int, idMessage int) error {
+func deleteElementFromDsCausal(key string, config Config, client *rpc.Client, idMessageClient int, idMessage int) error {
 	n1 := key
 
-	log.Printf("Get element with Key: %s contacting %s\n", n1, config.Address[serverNumber].Addr)
 	message := common.Message{Key: n1, OperationType: 2, IdMessageClient: idMessageClient, IdMessage: idMessage}
 	args := common.MessageCausal{MessageBase: message, VectorTimestamp: make([]int, len(config.Address))}
 	result := common.Response{Done: false}
@@ -211,18 +209,17 @@ func getElementFromDsCausal(key string, config Config, client *rpc.Client, idMes
 	reply := common.Response{Done: false}
 	err := client.Call("ServerCausal.CausalSendElement", args, &reply)
 
-	fmt.Println("Get element with Key: ", key)
-
 	if err != nil {
 		return fmt.Errorf(datastoreError+": %w", err)
 	}
 
 	if reply.Done != false {
-		printKeySuccessful(key, GetOperationString(Operation(message.OperationType)), idMessageClient)
+		printGetSuccessful(key, reply.GetValue, idMessageClient)
 	} else {
-		printKeyFail(key, GetOperationString(Operation(message.OperationType)), idMessageClient)
+		printGetFail(key, idMessageClient)
 	}
 	return nil
+
 }
 
 //Funzione per recuperare un elemento in versione sequenziale
@@ -234,16 +231,16 @@ func getElementFromDsSequential(key string, client *rpc.Client, idMessageClient 
 		IdMessage:       idMessage,
 		OperationType:   3,
 	}
-	reply := common.Response{Done: false}
+	reply := common.Response{Done: false, GetValue: ""}
 	args := common.MessageSequential{MessageBase: message}
 	err := client.Call("ServerSequential.SequentialSendElement", args, &reply)
 	if err != nil {
 		return fmt.Errorf(datastoreError+": %w", err)
 	}
 	if reply.Done != false {
-		printKeySuccessful(key, GetOperationString(Operation(message.OperationType)), idMessageClient)
+		printGetSuccessful(key, reply.GetValue, idMessageClient)
 	} else {
-		printKeyFail(key, GetOperationString(Operation(message.OperationType)), idMessageClient)
+		printGetFail(key, idMessageClient)
 	}
 	return nil
 }
@@ -313,4 +310,12 @@ func printPutFail(key string, value string, idServer int) {
 
 func printKeyFail(key string, operationType string, idServer int) {
 	log.Println("NON ESEGUITA OPERAZIONE DI TIPO ", operationType, "SU SERVER: ", idServer, "CON:", key)
+}
+
+func printGetSuccessful(key string, value string, idServer int) {
+	log.Println("ESEGUITA OPERAZIONE DI TIPO GET SU SERVER: ", idServer, "CON: ", key, ":", value)
+}
+
+func printGetFail(key string, idServer int) {
+	log.Println("NON ESEGUITA OPERAZIONE DI TIPO GET SU SERVER: ", idServer, "CON: ", key)
 }

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"main/clientCommon"
-	"math/rand"
 	"net/rpc"
 	"os"
 	"strings"
@@ -12,19 +11,17 @@ import (
 
 var actualIdMessage = 1
 
-func createCasualClient(config clientCommon.Config) (int, *rpc.Client, error) {
+func createCasualClient(config clientCommon.Config) (*rpc.Client, error) {
 
 	//Prendo un valore random compreso tra 0 e il numero di server - 1,
 	//così da poter contattare un server random tra quelli disponibili
 	//e successivamente lo vado a contattare
 
-	serverNumber := rand.Intn(len(config.Address) - 1)
-
 	client, err := rpc.Dial("tcp", config.Address[0].Addr)
 	if err != nil {
-		return -1, nil, fmt.Errorf("error in dialing: %w", err)
+		return nil, fmt.Errorf("error in dialing: %w", err)
 	}
-	return serverNumber, client, nil
+	return client, nil
 }
 
 // Funzione per stabilire l'azione che devo svolgere
@@ -122,7 +119,7 @@ func getConsistency() (int, string, error) {
 	}
 }
 
-func switchAction(actionToDo, key, value string, consistency int, serverNumber int, config clientCommon.Config, client *rpc.Client) {
+func switchAction(actionToDo, key, value string, consistency int, config clientCommon.Config, client *rpc.Client) {
 
 	switch actionToDo {
 	case "not specified":
@@ -136,7 +133,7 @@ func switchAction(actionToDo, key, value string, consistency int, serverNumber i
 		}
 		actualIdMessage++
 	case "delete":
-		err := clientCommon.HandleDeleteAction(consistency, key, config, serverNumber, client, 1, actualIdMessage)
+		err := clientCommon.HandleDeleteAction(consistency, key, config, client, 1, actualIdMessage)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -169,7 +166,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	serverNumber, client, err := createCasualClient(config)
+	client, err := createCasualClient(config)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -182,7 +179,7 @@ func main() {
 			log.Fatal(err)
 		}
 		//In base all'azione che l'utente ha scelto di svolgere, vado a chiamare la funzione corrispondente
-		switchAction(actionToDo, key, value, consistency, serverNumber, config, client)
+		switchAction(actionToDo, key, value, consistency, config, client)
 		//Chiedo all'utente se vuole continuare a svolgere operazioni sul datastore
 
 		var continueRunning string
