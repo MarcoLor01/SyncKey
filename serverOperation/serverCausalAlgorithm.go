@@ -12,6 +12,7 @@ import (
 func (s *ServerCausal) CausalSendElement(message common.MessageCausal, reply *common.Response) error {
 	//Incremento il mio timestamp essendo il server mittente, e preparo il messaggio all'invio
 	responseProcess := s.BaseServer.createResponse()
+
 	s.incrementMyTimestamp()
 
 	err := s.BaseServer.canProcess(message.GetMessageBase(), responseProcess)
@@ -130,15 +131,15 @@ func (s *ServerCausal) SaveMessageQueue(message common.MessageCausal, reply *com
 }
 
 func (s *ServerCausal) addToQueueCausal(message common.MessageCausal) {
-	s.myQueueMutex.Lock()
+	s.lockQueueMutex()
 	s.LocalQueue = append(s.LocalQueue, &message)
-	s.myQueueMutex.Unlock()
+	s.unlockQueueMutex()
 }
 
 func (s *ServerCausal) checkIfDeliverable(message common.MessageCausal, reply *common.Response) {
 
 	mod := false
-	s.myClockMutex.Lock()
+	s.lockClockMutex()
 	for {
 		//Controllo la prima condizione, ovvero che: t(m)[i] = V_j[i] + 1
 		mod = s.checkCondition(message, mod)
@@ -148,7 +149,7 @@ func (s *ServerCausal) checkIfDeliverable(message common.MessageCausal, reply *c
 
 		if mod {
 			for index := range message.GetTimestamp() {
-				if (index != message.GetServerID()-1) && (index != MyId-1) && ((message.GetTimestamp())[index] > s.MyClock[index]) {
+				if (index != message.GetServerID()-1) && (index != MyId-1) && ((message.GetTimestamp())[index] > s.getClock()[index]) {
 					response.SetDone(false)
 					break
 				}
@@ -174,12 +175,12 @@ func (s *ServerCausal) checkIfDeliverable(message common.MessageCausal, reply *c
 
 		if response.GetDone() {
 			reply.SetDone(true)
-			s.myClockMutex.Unlock()
+			s.unlockClockMutex()
 			return
 		} else {
-			s.myClockMutex.Unlock()
+			s.unlockClockMutex()
 			time.Sleep(1 * time.Second) //Riprova dopo 1 secondo
-			s.myClockMutex.Lock()
+			s.lockClockMutex()
 		}
 	}
 }
@@ -194,23 +195,29 @@ func (s *ServerCausal) sendMessageToApplication(message common.MessageCausal, re
 		return err
 	}
 
-	if message.MessageBase.OperationType == 1 {
+	if message.GetOperationType() == 1 {
 
 		err := s.removeFromQueueCausal(message)
 		if err != nil {
 			return err
 		}
+
 		log.Println("ESEGUITA, PROVENIENTE DA SERVER: ", message.GetServerID(), "azione di put per messaggio con key: ", message.GetKey(), " e value: ", message.GetValue())
+
 		reply.SetDone(true)
-	} else if message.MessageBase.OperationType == 2 {
+
+	} else if message.GetOperationType() == 2 {
 
 		err := s.removeFromQueueDeletingCausal(message)
 		if err != nil {
 			return err
 		}
+
 		log.Println("ESEGUITA, PROVENIENTE DA SERVER: ", message.GetServerID(), "azione di delete per messaggio con key: ", message.GetKey())
+
 		reply.SetDone(true)
-	} else if message.MessageBase.OperationType == 3 && message.MessageBase.ServerId == MyId {
+
+	} else if message.GetOperationType() == 3 && message.GetServerID() == MyId {
 
 		responseGet := s.BaseServer.createResponse()
 		errGet := s.CausalGetElement(message.MessageBase, responseGet)
@@ -220,7 +227,8 @@ func (s *ServerCausal) sendMessageToApplication(message common.MessageCausal, re
 		log.Println("ESEGUITA, PROVENIENTE DA SERVER: ", message.GetServerID(), "azione di get per messaggio con key: ", message.GetKey(), "e value: ", responseGet.GetValue)
 		reply.SetDone(true)
 		reply.SetValue(responseGet.GetResponseValue())
-	} else if message.MessageBase.OperationType == 3 {
+
+	} else if message.GetOperationType() == 3 {
 		reply.SetDone(true)
 
 	} else {
@@ -236,7 +244,7 @@ func (s *ServerCausal) CausalGetElement(Message common.Message, reply *common.Re
 
 	if value, ok := s.BaseServer.DataStore[Message.Key]; ok {
 		reply.SetDone(true)
-		reply.GetValue = value
+		reply.SetValue(value)
 		s.BaseServer.myDatastoreMutex.Unlock()
 		return nil
 

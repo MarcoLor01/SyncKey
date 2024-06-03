@@ -1,10 +1,7 @@
 package serverOperation
 
 import (
-	"fmt"
-	"log"
 	"main/common"
-	"net/rpc"
 	"sync"
 )
 
@@ -16,107 +13,49 @@ type ServerCausal struct {
 	BaseServer   ServerBase              //Cose in comune tra server causale e sequenziale
 }
 
+//Inizializzazione di un server con consistenza causale
+
 func CreateNewCausalDataStore() *ServerCausal {
 
 	return &ServerCausal{
 		LocalQueue: make([]*common.MessageCausal, 0),
-		MyClock:    make([]int, len(addresses.Addresses)), //My vectorial Clock
+		MyClock:    make([]int, len(addresses.Addresses)), //Inizializzo il mio vettore di clock vettoriale
 		BaseServer: ServerBase{
 			DataStore: make(map[string]string),
 		},
 	}
-
-} //Inizializzazione di un server con consistenza causale
-
-func InitializeServerCausal() *ServerCausal {
-	myServer := CreateNewCausalDataStore()
-	return myServer
 }
 
-func (s *ServerCausal) prepareMessage(message *common.MessageCausal) {
-	s.myClockMutex.Lock()
-	copy(message.VectorTimestamp, s.MyClock)
-	message.MessageBase.ServerId = MyId
-	message.IdUnique = generateUniqueID()
-	s.myClockMutex.Unlock()
+type ClockVectorialOperation interface {
+	getClock() int
+	setClock(int)
+	incrementClock()
 }
 
-//Funzione per la rimozione di un messaggio dalla coda nel caso di operazione di Delete nella consistenza causale
-
-func (s *ServerCausal) removeFromQueueDeletingCausal(message common.MessageCausal) error {
-	var isHere bool
-	for i, msg := range s.LocalQueue {
-		if message.IdUnique == msg.IdUnique {
-			delete(s.BaseServer.DataStore, msg.MessageBase.Key)
-			s.LocalQueue = append(s.LocalQueue[:i], s.LocalQueue[i+1:]...)
-			isHere = true
-			break
-		}
-	}
-	if isHere != true {
-		return fmt.Errorf("message not in queue")
-	}
-	return nil
+func (s *ServerCausal) getClock() []int {
+	return s.MyClock
 }
 
-//Funzione per l'eliminazione di un messaggio dalla coda nel caso di consistenza causale
-
-func (s *ServerCausal) removeFromQueueCausal(message common.MessageCausal) error {
-	var isHere bool
-	s.myQueueMutex.Lock()
-	defer s.myQueueMutex.Unlock()
-	for i, msg := range s.LocalQueue {
-		if message.IdUnique == msg.IdUnique {
-			s.BaseServer.myDatastoreMutex.Lock()
-			s.BaseServer.DataStore[msg.MessageBase.Key] = msg.MessageBase.Value
-			s.BaseServer.myDatastoreMutex.Unlock()
-			s.LocalQueue = append(s.LocalQueue[:i], s.LocalQueue[i+1:]...)
-			isHere = true
-			break
-		}
-	}
-	if isHere != true {
-		return fmt.Errorf("message not in queue")
-	}
-	return nil
+func (s *ServerCausal) setClock(value []int) {
+	s.MyClock = value
 }
 
-func (s *ServerCausal) checkCondition(message common.MessageCausal, mod bool) bool {
-	if MyId != message.GetServerID() {
-		mod = message.VectorTimestamp[message.GetServerID()-1] == s.MyClock[message.GetServerID()-1]+1
-	} else if MyId == message.GetServerID() {
-		mod = true
-	}
-
-	return mod
-}
-
-func (s *ServerBase) createResponse() *common.Response {
-	return &common.Response{Done: false, GetValue: ""}
-}
-
-func (s *ServerCausal) incrementClockReceive(message common.MessageCausal) {
-	//Aggiorno il clock come max(t[k],V_j[k]
-	s.myClockMutex.Lock()
-	for ind := range message.VectorTimestamp {
-		if message.VectorTimestamp[ind] > s.MyClock[ind] {
-			s.MyClock[ind] = message.VectorTimestamp[ind]
-		}
-	}
-	s.myClockMutex.Unlock()
-}
-
-func InitializeAndRegisterServerCausal(server *rpc.Server, numberClients int) {
-	myServer := InitializeServerCausal()
-	err := server.Register(myServer)
-	if err != nil {
-		log.Fatal("Format of service SyncKey is not correct: ", err)
-	}
-	myServer.BaseServer.InitializeMessageClients(numberClients)
-}
-
-func (s *ServerCausal) incrementMyTimestamp() {
-	s.myClockMutex.Lock()
+func (s *ServerCausal) incrementClock() {
 	s.MyClock[MyId-1]++
+}
+
+func (s *ServerCausal) lockClockMutex() {
+	s.myClockMutex.Lock()
+}
+
+func (s *ServerCausal) unlockClockMutex() {
 	s.myClockMutex.Unlock()
+}
+
+func (s *ServerCausal) lockQueueMutex() {
+	s.myQueueMutex.Lock()
+}
+
+func (s *ServerCausal) unlockQueueMutex() {
+	s.myQueueMutex.Unlock()
 }
