@@ -91,6 +91,42 @@ func funcServer3MediumCausal(client *rpc.Client, config clientCommon.Config, con
 	executeActions(actions, wg)
 }
 
+//Test difficile
+
+func funcServer1HardCausal(client *rpc.Client, config clientCommon.Config, consistency int, wg *sync.WaitGroup, errCh chan<- error) {
+	actionDone := make(chan bool, 4)
+	actions := []func(){
+		func() { handlePutWithChannel(consistency, "x", "a", config, client, 1, 1, actionDone, errCh) },
+		func() { handleGetWithChannel(consistency, "y", config, client, 1, 2, actionDone, errCh) },
+		func() { handlePutWithChannel(consistency, "x", "b", config, client, 1, 3, actionDone, errCh) },
+		func() { handleGetWithChannel(consistency, "x", config, client, 1, 4, actionDone, errCh) },
+	}
+	executeActions(actions, wg)
+}
+
+func funcServer2HardCausal(client *rpc.Client, config clientCommon.Config, consistency int, wg *sync.WaitGroup, errCh chan<- error) {
+	actionDone := make(chan bool, 4)
+	actions := []func(){
+		func() { handlePutWithChannel(consistency, "y", "b", config, client, 2, 1, actionDone, errCh) },
+		func() { handleGetWithChannel(consistency, "x", config, client, 2, 2, actionDone, errCh) },
+		func() { handleGetWithChannel(consistency, "y", config, client, 2, 3, actionDone, errCh) },
+		func() { handleGetWithChannel(consistency, "x", config, client, 2, 4, actionDone, errCh) },
+	}
+	executeActions(actions, wg)
+
+}
+
+func funcServer3HardCausal(client *rpc.Client, config clientCommon.Config, consistency int, wg *sync.WaitGroup, errCh chan<- error) {
+	actionDone := make(chan bool, 4)
+	actions := []func(){
+		func() { handleGetWithChannel(consistency, "x", config, client, 3, 1, actionDone, errCh) },
+		func() { handlePutWithChannel(consistency, "x", "c", config, client, 3, 2, actionDone, errCh) },
+		func() { handlePutWithChannel(consistency, "y", "c", config, client, 3, 3, actionDone, errCh) },
+		func() { handleGetWithChannel(consistency, "x", config, client, 3, 4, actionDone, errCh) },
+	}
+	executeActions(actions, wg)
+}
+
 func funcServer1MediumSequential(client *rpc.Client, config clientCommon.Config, consistency int, wg *sync.WaitGroup, errCh chan<- error) {
 	actionDone := make(chan bool, 5)
 	actions := []func(){
@@ -174,6 +210,7 @@ func TestMedium(config clientCommon.Config, client1 *rpc.Client, client2 *rpc.Cl
 		go funcServer3MediumSequential(client3, config, consistency, &wg, errCh)
 
 	} else if consistency == 0 {
+
 		go funcServer1MediumCausal(client1, config, consistency, &wg, errCh)
 		go funcServer2MediumCausal(client2, config, consistency, &wg, errCh)
 		go funcServer3MediumCausal(client3, config, consistency, &wg, errCh)
@@ -201,10 +238,21 @@ func TestHard(config clientCommon.Config, client1 *rpc.Client, client2 *rpc.Clie
 	var wg sync.WaitGroup
 	wg.Add(3)
 
-	go funcServer1HardSequential(client1, config, consistency, &wg, errCh)
-	go funcServer2HardSequential(client2, config, consistency, &wg, errCh)
-	go funcServer3HardSequential(client3, config, consistency, &wg, errCh)
+	if consistency == 1 {
 
+		go funcServer1HardSequential(client1, config, consistency, &wg, errCh)
+		go funcServer2HardSequential(client2, config, consistency, &wg, errCh)
+		go funcServer3HardSequential(client3, config, consistency, &wg, errCh)
+
+	} else if consistency == 0 {
+
+		go funcServer1HardCausal(client1, config, consistency, &wg, errCh)
+		go funcServer2HardCausal(client2, config, consistency, &wg, errCh)
+		go funcServer3HardCausal(client3, config, consistency, &wg, errCh)
+
+	} else {
+		log.Fatal("wrong value for consistency")
+	}
 	wg.Wait()
 
 	go func() {
@@ -280,24 +328,44 @@ func funcServer3HardSequential(client *rpc.Client, config clientCommon.Config, c
 func main() {
 	var testType, testDifficulty string
 
-	fmt.Println("Inserisci il tipo di test (sequenziale o causale): ")
-	_, err := fmt.Scan(&testType)
-	if err != nil {
-		log.Fatal(err)
+	// Funzione per richiedere il tipo di test con controllo validità
+	for {
+		fmt.Println("Inserisci il tipo di test (sequenziale o causale): ")
+		_, err := fmt.Scan(&testType)
+		if err != nil {
+			log.Println("Errore di input:", err)
+			continue
+		}
+		if testType == "sequenziale" || testType == "causale" {
+			break
+		} else {
+			fmt.Println("Tipo di test non riconosciuto. Per favore inserisci 'sequenziale' o 'causale'.")
+		}
 	}
-	fmt.Println("Inserisci la difficoltà del test (medio o difficile): ")
-	_, err = fmt.Scan(&testDifficulty)
-	if err != nil {
-		return
+
+	// Funzione per richiedere la difficoltà del test con controllo validità
+	for {
+		fmt.Println("Inserisci la difficoltà del test (medio o difficile): ")
+		_, err := fmt.Scan(&testDifficulty)
+		if err != nil {
+			log.Println("Errore di input:", err)
+			continue
+		}
+		if testDifficulty == "medio" || testDifficulty == "difficile" {
+			break
+		} else {
+			fmt.Println("Difficoltà del test non riconosciuta. Per favore inserisci 'medio' o 'difficile'.")
+		}
 	}
-	if err != nil {
-		log.Fatal(err)
-	}
+
+	// Chiamata alla configurazione
 	err, config, client1, client2, client3 := Configuration()
 	if err != nil {
 		log.Fatal(err)
 		return
 	}
+
+	// Esecuzione dei test in base al tipo e alla difficoltà
 	switch testType {
 	case "sequenziale":
 		switch testDifficulty {
@@ -311,8 +379,6 @@ func main() {
 			if err := TestHard(config, client1, client2, client3, 1); err != nil {
 				fmt.Println("TestHard error:", err)
 			}
-		default:
-			fmt.Println("Difficoltà del test non riconosciuta.")
 		}
 	case "causale":
 		switch testDifficulty {
@@ -326,10 +392,6 @@ func main() {
 			if err := TestHard(config, client1, client2, client3, 0); err != nil {
 				fmt.Println("TestCausalHard error:", err)
 			}
-		default:
-			fmt.Println("Difficoltà del test non riconosciuta.")
 		}
-	default:
-		fmt.Println("Tipo di test non riconosciuto.")
 	}
 }

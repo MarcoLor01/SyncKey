@@ -12,8 +12,7 @@ import (
 //Funzione con cui il ricevente del Client informa tutti i server del messaggio ricevuto
 
 func (s *ServerSequential) SequentialSendElement(message common.MessageSequential, response *common.Response) error {
-	//Aggiorno il mio clock scalare e lo allego al messaggio da inviare a tutti i server
-	//Genero inoltre un ID univoco e lo allego al messaggio insieme al mio ID, in questo modo tutti sapranno in ogni momento chi ha generato il messaggio
+
 	responseProcess := s.BaseServer.createResponse()
 
 	err := s.BaseServer.canProcess(message.GetMessageBase(), responseProcess)
@@ -21,6 +20,9 @@ func (s *ServerSequential) SequentialSendElement(message common.MessageSequentia
 	if err != nil {
 		return err
 	}
+
+	//Aggiorno il mio clock scalare e lo allego al messaggio da inviare a tutti i server
+	//Genero inoltre un ID univoco e lo allego al messaggio insieme al mio ID, in questo modo tutti sapranno in ogni momento chi ha generato il messaggio
 
 	s.prepareMessage(&message)
 	reply := s.BaseServer.createResponse()
@@ -255,8 +257,8 @@ func (s *ServerSequential) checkSecondCondition(message common.MessageSequential
 	for i := range addresses.Addresses {
 		found := false
 		for _, msg := range s.LocalQueue {
-			if msg.MessageBase.ServerId == i+1 {
-				if msg.ScalarTimestamp > message.GetTimestamp() {
+			if msg.GetServerID() == i+1 {
+				if msg.GetTimestamp() > message.GetTimestamp() {
 					found = true
 					break
 				}
@@ -331,7 +333,7 @@ func (s *ServerSequential) updateDataStore(message common.MessageSequential, rep
 		log.Println("ESEGUITA, PROVENIENTE DA SERVER: ", message.GetServerID(), "azione di put per messaggio con key: ", message.GetKey(), " e value: ", message.GetValue())
 		reply.SetDone(true)
 
-	} else if message.MessageBase.OperationType == 2 {
+	} else if message.GetOperationType() == 2 {
 
 		if s.sequentialDeleteElementDatastore(message) {
 			log.Println("ESEGUITA, PROVENIENTE DA SERVER: ", message.GetServerID(), "azione di delete per messaggio con key: ", message.GetKey())
@@ -374,29 +376,4 @@ func (s *ServerSequential) SequentialGetElement(message common.Message, reply *c
 	}
 	return fmt.Errorf("value for this key not found")
 
-}
-
-func (s *ServerSequential) incrementClockReceive(message common.MessageSequential) {
-	s.lockClockMutex()
-
-	if message.GetTimestamp() > s.getClock() {
-		s.setClock(message.GetTimestamp())
-	}
-
-	if message.GetServerID() != MyId {
-		s.incrementClock()
-	}
-	s.unlockClockMutex()
-
-}
-
-func (s *ServerSequential) lastValue() bool {
-	s.lockQueueMutex()
-	defer s.unlockQueueMutex()
-	for _, msg := range s.LocalQueue {
-		if msg.GetKey() != "LastValue" {
-			return false
-		}
-	}
-	return true
 }

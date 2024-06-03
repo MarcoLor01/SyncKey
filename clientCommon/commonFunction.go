@@ -174,6 +174,7 @@ func deleteElementFromDsCausal(key string, config Config, client *rpc.Client, id
 	} else {
 		printDeleteFail(args.MessageBase.Key, message.IdMessageClient)
 	}
+
 	return nil
 }
 
@@ -265,13 +266,6 @@ func LoadEnvironment() string {
 }
 
 //Funzione per andare a chiudere la chiamata a un qualsiasi server, passato come input
-
-func CloseClient(client *rpc.Client) {
-	err := client.Close()
-	if err != nil {
-		log.Println("Error closing the client:", err)
-	}
-}
 
 func printPutSuccessful(key, value string, idServer int) {
 	log.Println("ESEGUITA OPERAZIONE DI TIPO PUT SU SERVER: ", idServer, "CON: ", key, ":", value)
