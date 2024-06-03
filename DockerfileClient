@@ -5,12 +5,13 @@ WORKDIR /SyncKey
 COPY go.mod .
 COPY serversAddrDocker.json .
 COPY common/serverClientStructure.go ./common/serverClientStructure.go
-COPY clients ./clients
+COPY clients/clientFunctions.go ./clients/clientFunctions.go
+COPY .env .
 
 RUN go get -u github.com/joho/godotenv
 
-COPY . .
+COPY clients ./clients
+RUN go build -o clientTests ./clients
 
 EXPOSE 8080
 
-RUN go build -o clients/clientTests ./clients/clientTests.go

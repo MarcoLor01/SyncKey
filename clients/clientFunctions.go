@@ -256,7 +256,7 @@ func LoadConfig(configuration string) (Config, error) {
 //Funzione per caricare le variabili d'ambiente dal file .env
 
 func LoadEnvironment() string {
-	err := godotenv.Load("../.env")
+	err := godotenv.Load(".env")
 	if err != nil {
 		log.Fatal("Error loading .env file", err)
 	}
