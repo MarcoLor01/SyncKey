@@ -17,7 +17,7 @@ if [ $CONFIG -eq 1 ]; then
     gnome-terminal -- bash -c "cd $client_files && go run client.go"
 elif [ $CONFIG -eq 2 ]; then
     # Esecuzione di docker compose up --build
-    docker-compose up --build
+    docker-compose up -d --build
 else
     echo "Errore: CONFIG deve essere 1 o 2."
     exit 1

@@ -4,17 +4,13 @@ WORKDIR /SyncKey
 
 COPY go.mod .
 COPY serversAddrDocker.json .
-COPY clientCommon ./clientCommon
+COPY clientFunctions.go .
+COPY common/serverClientStructure.go ./common/serverClientStructure.go
 
 RUN go get -u github.com/joho/godotenv
 
 COPY . .
 
-# Expose port 8080 to the outside world
 EXPOSE 8080
-#RUN go build -o clients/client ./clients/client.go
-RUN go build -o clients/clientSequential ./clients/clientSequential.go
 
-# Command to run the executable
-CMD ["./clients/client"]
-CMD ["./clients/clientSequential"]
+RUN go build -o clients/clientTests ./clients/clientTests.go

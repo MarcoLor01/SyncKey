@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"main/clientCommon"
 	"net/rpc"
 	"sync"
 	"time"
@@ -12,24 +11,24 @@ import (
 var iteration = 1
 var mu sync.Mutex
 
-func handlePutWithChannel(consistency int, key string, value string, config clientCommon.Config, client *rpc.Client, processId int, actionId int, done chan<- bool, errCh chan<- error) {
-	err := clientCommon.HandlePutAction(consistency, key, value, config, client, processId, actionId)
+func handlePutWithChannel(consistency int, key string, value string, config Config, client *rpc.Client, processId int, actionId int, done chan<- bool, errCh chan<- error) {
+	err := HandlePutAction(consistency, key, value, config, client, processId, actionId)
 	if err != nil {
 		errCh <- fmt.Errorf("error in HandlePutAction %d: %w", actionId, err)
 	}
 	done <- true
 }
 
-func handleGetWithChannel(consistency int, key string, config clientCommon.Config, client *rpc.Client, processId int, actionId int, done chan<- bool, errCh chan<- error) {
-	err := clientCommon.HandleGetAction(consistency, key, config, client, processId, actionId)
+func handleGetWithChannel(consistency int, key string, config Config, client *rpc.Client, processId int, actionId int, done chan<- bool, errCh chan<- error) {
+	err := HandleGetAction(consistency, key, config, client, processId, actionId)
 	if err != nil {
 		errCh <- fmt.Errorf("error in HandleGetAction %d: %w", actionId, err)
 	}
 	done <- true
 }
 
-func handleDeleteWithChannel(consistency int, key string, config clientCommon.Config, client *rpc.Client, processId int, actionId int, done chan<- bool, errCh chan<- error) {
-	err := clientCommon.HandleDeleteAction(consistency, key, config, client, processId, actionId)
+func handleDeleteWithChannel(consistency int, key string, config Config, client *rpc.Client, processId int, actionId int, done chan<- bool, errCh chan<- error) {
+	err := HandleDeleteAction(consistency, key, config, client, processId, actionId)
 	if err != nil {
 		errCh <- fmt.Errorf("error in HandleDeleteAction %d: %w", actionId, err)
 	}
@@ -60,7 +59,7 @@ func executeActions(actions []func(), wg *sync.WaitGroup) {
 	}
 }
 
-func funcServer1MediumCausal(client *rpc.Client, config clientCommon.Config, consistency int, wg *sync.WaitGroup, errCh chan<- error) {
+func funcServer1MediumCausal(client *rpc.Client, config Config, consistency int, wg *sync.WaitGroup, errCh chan<- error) {
 	actionDone := make(chan bool, 3)
 	actions := []func(){
 		func() { handlePutWithChannel(consistency, "x", "a", config, client, 1, 1, actionDone, errCh) },
@@ -70,7 +69,7 @@ func funcServer1MediumCausal(client *rpc.Client, config clientCommon.Config, con
 	executeActions(actions, wg)
 }
 
-func funcServer2MediumCausal(client *rpc.Client, config clientCommon.Config, consistency int, wg *sync.WaitGroup, errCh chan<- error) {
+func funcServer2MediumCausal(client *rpc.Client, config Config, consistency int, wg *sync.WaitGroup, errCh chan<- error) {
 	actionDone := make(chan bool, 3)
 	actions := []func(){
 		func() { handleGetWithChannel(consistency, "x", config, client, 2, 1, actionDone, errCh) },
@@ -81,7 +80,7 @@ func funcServer2MediumCausal(client *rpc.Client, config clientCommon.Config, con
 
 }
 
-func funcServer3MediumCausal(client *rpc.Client, config clientCommon.Config, consistency int, wg *sync.WaitGroup, errCh chan<- error) {
+func funcServer3MediumCausal(client *rpc.Client, config Config, consistency int, wg *sync.WaitGroup, errCh chan<- error) {
 	actionDone := make(chan bool, 3)
 	actions := []func(){
 		func() { handleGetWithChannel(consistency, "x", config, client, 3, 1, actionDone, errCh) },
@@ -93,7 +92,7 @@ func funcServer3MediumCausal(client *rpc.Client, config clientCommon.Config, con
 
 //Test difficile
 
-func funcServer1HardCausal(client *rpc.Client, config clientCommon.Config, consistency int, wg *sync.WaitGroup, errCh chan<- error) {
+func funcServer1HardCausal(client *rpc.Client, config Config, consistency int, wg *sync.WaitGroup, errCh chan<- error) {
 	actionDone := make(chan bool, 4)
 	actions := []func(){
 		func() { handlePutWithChannel(consistency, "x", "a", config, client, 1, 1, actionDone, errCh) },
@@ -104,7 +103,7 @@ func funcServer1HardCausal(client *rpc.Client, config clientCommon.Config, consi
 	executeActions(actions, wg)
 }
 
-func funcServer2HardCausal(client *rpc.Client, config clientCommon.Config, consistency int, wg *sync.WaitGroup, errCh chan<- error) {
+func funcServer2HardCausal(client *rpc.Client, config Config, consistency int, wg *sync.WaitGroup, errCh chan<- error) {
 	actionDone := make(chan bool, 4)
 	actions := []func(){
 		func() { handlePutWithChannel(consistency, "y", "b", config, client, 2, 1, actionDone, errCh) },
@@ -116,7 +115,7 @@ func funcServer2HardCausal(client *rpc.Client, config clientCommon.Config, consi
 
 }
 
-func funcServer3HardCausal(client *rpc.Client, config clientCommon.Config, consistency int, wg *sync.WaitGroup, errCh chan<- error) {
+func funcServer3HardCausal(client *rpc.Client, config Config, consistency int, wg *sync.WaitGroup, errCh chan<- error) {
 	actionDone := make(chan bool, 4)
 	actions := []func(){
 		func() { handleGetWithChannel(consistency, "x", config, client, 3, 1, actionDone, errCh) },
@@ -127,7 +126,7 @@ func funcServer3HardCausal(client *rpc.Client, config clientCommon.Config, consi
 	executeActions(actions, wg)
 }
 
-func funcServer1MediumSequential(client *rpc.Client, config clientCommon.Config, consistency int, wg *sync.WaitGroup, errCh chan<- error) {
+func funcServer1MediumSequential(client *rpc.Client, config Config, consistency int, wg *sync.WaitGroup, errCh chan<- error) {
 	actionDone := make(chan bool, 5)
 	actions := []func(){
 		func() { handlePutWithChannel(consistency, "x", "a", config, client, 1, 1, actionDone, errCh) },
@@ -141,7 +140,7 @@ func funcServer1MediumSequential(client *rpc.Client, config clientCommon.Config,
 	executeActions(actions, wg)
 }
 
-func funcServer2MediumSequential(client *rpc.Client, config clientCommon.Config, consistency int, wg *sync.WaitGroup, errCh chan<- error) {
+func funcServer2MediumSequential(client *rpc.Client, config Config, consistency int, wg *sync.WaitGroup, errCh chan<- error) {
 	actionDone := make(chan bool, 5)
 	actions := []func(){
 		func() { handlePutWithChannel(consistency, "y", "b", config, client, 2, 1, actionDone, errCh) },
@@ -156,7 +155,7 @@ func funcServer2MediumSequential(client *rpc.Client, config clientCommon.Config,
 	executeActions(actions, wg)
 }
 
-func funcServer3MediumSequential(client *rpc.Client, config clientCommon.Config, consistency int, wg *sync.WaitGroup, errCh chan<- error) {
+func funcServer3MediumSequential(client *rpc.Client, config Config, consistency int, wg *sync.WaitGroup, errCh chan<- error) {
 	actionDone := make(chan bool, 5)
 	actions := []func(){
 		func() { handlePutWithChannel(consistency, "x", "c", config, client, 3, 1, actionDone, errCh) },
@@ -171,25 +170,25 @@ func funcServer3MediumSequential(client *rpc.Client, config clientCommon.Config,
 	executeActions(actions, wg)
 }
 
-func Configuration() (error, clientCommon.Config, *rpc.Client, *rpc.Client, *rpc.Client) {
-	configuration := clientCommon.LoadEnvironment()
+func Configuration() (error, Config, *rpc.Client, *rpc.Client, *rpc.Client) {
+	configuration := LoadEnvironment()
 
-	config, err := clientCommon.LoadConfig(configuration)
+	config, err := LoadConfig(configuration)
 	if err != nil {
 		return fmt.Errorf("error loading config: %w", err), config, nil, nil, nil
 	}
 
-	client1, err := clientCommon.CreateClient(config, 0) // Sto contattando il server 0
+	client1, err := CreateClient(config, 0) // Sto contattando il server 0
 	if err != nil {
 		return fmt.Errorf("error creating client 1: %w", err), config, nil, nil, nil
 	}
 
-	client2, err := clientCommon.CreateClient(config, 1) // Sto contattando il server 1
+	client2, err := CreateClient(config, 1) // Sto contattando il server 1
 	if err != nil {
 		return fmt.Errorf("error creating client 2: %w", err), config, nil, nil, nil
 	}
 
-	client3, err := clientCommon.CreateClient(config, 2) // Sto contattando il server 2
+	client3, err := CreateClient(config, 2) // Sto contattando il server 2
 	if err != nil {
 		return fmt.Errorf("error creating client 3: %w", err), config, nil, nil, nil
 	}
@@ -197,7 +196,7 @@ func Configuration() (error, clientCommon.Config, *rpc.Client, *rpc.Client, *rpc
 	return nil, config, client1, client2, client3
 }
 
-func TestMedium(config clientCommon.Config, client1 *rpc.Client, client2 *rpc.Client, client3 *rpc.Client, consistency int) error {
+func TestMedium(config Config, client1 *rpc.Client, client2 *rpc.Client, client3 *rpc.Client, consistency int) error {
 	errCh := make(chan error, 3)
 	defer close(errCh)
 
@@ -231,7 +230,7 @@ func TestMedium(config clientCommon.Config, client1 *rpc.Client, client2 *rpc.Cl
 	return nil
 }
 
-func TestHard(config clientCommon.Config, client1 *rpc.Client, client2 *rpc.Client, client3 *rpc.Client, consistency int) error {
+func TestHard(config Config, client1 *rpc.Client, client2 *rpc.Client, client3 *rpc.Client, consistency int) error {
 	errCh := make(chan error, 3)
 	defer close(errCh)
 
@@ -265,7 +264,7 @@ func TestHard(config clientCommon.Config, client1 *rpc.Client, client2 *rpc.Clie
 	return nil
 }
 
-func funcServer1HardSequential(client *rpc.Client, config clientCommon.Config, consistency int, wg *sync.WaitGroup, errCh chan<- error) {
+func funcServer1HardSequential(client *rpc.Client, config Config, consistency int, wg *sync.WaitGroup, errCh chan<- error) {
 	actionDone := make(chan bool, 9)
 
 	actions := []func(){
@@ -285,7 +284,7 @@ func funcServer1HardSequential(client *rpc.Client, config clientCommon.Config, c
 	executeActions(actions, wg)
 }
 
-func funcServer2HardSequential(client *rpc.Client, config clientCommon.Config, consistency int, wg *sync.WaitGroup, errCh chan<- error) {
+func funcServer2HardSequential(client *rpc.Client, config Config, consistency int, wg *sync.WaitGroup, errCh chan<- error) {
 	actionDone := make(chan bool, 9)
 
 	actions := []func(){
@@ -305,7 +304,7 @@ func funcServer2HardSequential(client *rpc.Client, config clientCommon.Config, c
 	executeActions(actions, wg)
 }
 
-func funcServer3HardSequential(client *rpc.Client, config clientCommon.Config, consistency int, wg *sync.WaitGroup, errCh chan<- error) {
+func funcServer3HardSequential(client *rpc.Client, config Config, consistency int, wg *sync.WaitGroup, errCh chan<- error) {
 	actionDone := make(chan bool, 9)
 
 	actions := []func(){
