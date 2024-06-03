@@ -236,7 +236,7 @@ func CreateClient(config Config, serverNumber int) (*rpc.Client, error) {
 
 func LoadConfig(configuration string) (Config, error) {
 
-	filePath := map[string]string{"1": "../serversAddrLocal.json", "2": "../serversAddrDocker.json"}[configuration]
+	filePath := map[string]string{"1": "../serversAddrLocal.json", "2": "./serversAddrDocker.json"}[configuration]
 	if filePath == "" {
 		log.Fatalf("Error loading the configuration file: CONFIG is set to '%s'", configuration)
 	}
