@@ -28,6 +28,14 @@ func handleGetWithChannel(consistency int, key string, config clientCommon.Confi
 	done <- true
 }
 
+func handleDeleteWithChannel(consistency int, key string, config clientCommon.Config, client *rpc.Client, processId int, actionId int, done chan<- bool, errCh chan<- error) {
+	err := clientCommon.HandleDeleteAction(consistency, key, config, client, processId, actionId)
+	if err != nil {
+		errCh <- fmt.Errorf("error in HandleDeleteAction %d: %w", actionId, err)
+	}
+	done <- true
+}
+
 func executeActions(actions []func(), wg *sync.WaitGroup) {
 	defer wg.Done()
 
@@ -160,16 +168,20 @@ func TestMedium(config clientCommon.Config, client1 *rpc.Client, client2 *rpc.Cl
 	var wg sync.WaitGroup
 	wg.Add(3)
 	if consistency == 1 {
+
 		go funcServer1MediumSequential(client1, config, consistency, &wg, errCh)
 		go funcServer2MediumSequential(client2, config, consistency, &wg, errCh)
 		go funcServer3MediumSequential(client3, config, consistency, &wg, errCh)
+
 	} else if consistency == 0 {
 		go funcServer1MediumCausal(client1, config, consistency, &wg, errCh)
 		go funcServer2MediumCausal(client2, config, consistency, &wg, errCh)
 		go funcServer3MediumCausal(client3, config, consistency, &wg, errCh)
+
 	} else {
 		log.Fatal("wrong value for consistency")
 	}
+
 	wg.Wait()
 
 	go func() {
@@ -211,11 +223,11 @@ func funcServer1HardSequential(client *rpc.Client, config clientCommon.Config, c
 	actions := []func(){
 		func() { handlePutWithChannel(consistency, "y", "a", config, client, 1, 1, actionDone, errCh) },
 		func() { handleGetWithChannel(consistency, "x", config, client, 1, 2, actionDone, errCh) },
-		func() { handlePutWithChannel(consistency, "x", "a", config, client, 1, 3, actionDone, errCh) },
+		func() { handleDeleteWithChannel(consistency, "x", config, client, 1, 3, actionDone, errCh) },
 		func() { handleGetWithChannel(consistency, "x", config, client, 1, 4, actionDone, errCh) },
 		func() { handlePutWithChannel(consistency, "y", "b", config, client, 1, 5, actionDone, errCh) },
 		func() { handleGetWithChannel(consistency, "y", config, client, 1, 6, actionDone, errCh) },
-		func() { handlePutWithChannel(consistency, "y", "a", config, client, 1, 7, actionDone, errCh) },
+		func() { handleDeleteWithChannel(consistency, "y", config, client, 1, 7, actionDone, errCh) },
 		func() { handleGetWithChannel(consistency, "y", config, client, 1, 8, actionDone, errCh) },
 		func() {
 			handlePutWithChannel(consistency, "LastValue", "LastValue", config, client, 1, 9, actionDone, errCh)
@@ -231,11 +243,11 @@ func funcServer2HardSequential(client *rpc.Client, config clientCommon.Config, c
 	actions := []func(){
 		func() { handlePutWithChannel(consistency, "x", "a", config, client, 2, 1, actionDone, errCh) },
 		func() { handleGetWithChannel(consistency, "y", config, client, 2, 2, actionDone, errCh) },
-		func() { handlePutWithChannel(consistency, "y", "a", config, client, 2, 3, actionDone, errCh) },
+		func() { handleDeleteWithChannel(consistency, "y", config, client, 2, 3, actionDone, errCh) },
 		func() { handleGetWithChannel(consistency, "y", config, client, 2, 4, actionDone, errCh) },
 		func() { handlePutWithChannel(consistency, "x", "a", config, client, 2, 5, actionDone, errCh) },
 		func() { handleGetWithChannel(consistency, "y", config, client, 2, 6, actionDone, errCh) },
-		func() { handlePutWithChannel(consistency, "x", "a", config, client, 2, 7, actionDone, errCh) },
+		func() { handleDeleteWithChannel(consistency, "x", config, client, 2, 7, actionDone, errCh) },
 		func() { handleGetWithChannel(consistency, "y", config, client, 2, 8, actionDone, errCh) },
 		func() {
 			handlePutWithChannel(consistency, "LastValue", "LastValue", config, client, 2, 9, actionDone, errCh)
@@ -251,11 +263,11 @@ func funcServer3HardSequential(client *rpc.Client, config clientCommon.Config, c
 	actions := []func(){
 		func() { handlePutWithChannel(consistency, "y", "b", config, client, 3, 1, actionDone, errCh) },
 		func() { handleGetWithChannel(consistency, "x", config, client, 3, 2, actionDone, errCh) },
-		func() { handlePutWithChannel(consistency, "x", "a", config, client, 3, 3, actionDone, errCh) },
+		func() { handleDeleteWithChannel(consistency, "x", config, client, 3, 3, actionDone, errCh) },
 		func() { handleGetWithChannel(consistency, "y", config, client, 3, 4, actionDone, errCh) },
 		func() { handlePutWithChannel(consistency, "y", "a", config, client, 3, 5, actionDone, errCh) },
 		func() { handleGetWithChannel(consistency, "y", config, client, 3, 6, actionDone, errCh) },
-		func() { handlePutWithChannel(consistency, "x", "a", config, client, 3, 7, actionDone, errCh) },
+		func() { handleDeleteWithChannel(consistency, "x", config, client, 3, 7, actionDone, errCh) },
 		func() { handleGetWithChannel(consistency, "x", config, client, 3, 8, actionDone, errCh) },
 		func() {
 			handlePutWithChannel(consistency, "LastValue", "LastValue", config, client, 3, 9, actionDone, errCh)

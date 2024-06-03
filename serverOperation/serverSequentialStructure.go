@@ -108,10 +108,15 @@ func (s *ServerSequential) createAckMessage(Message common.MessageSequential) Ac
 
 //Funzione per la rimozione di un messaggio dal datastore
 
-func (s *ServerSequential) sequentialDeleteElementDatastore(message common.MessageSequential) {
+func (s *ServerSequential) sequentialDeleteElementDatastore(message common.MessageSequential) bool {
 	s.BaseServer.myDatastoreMutex.Lock()
-	delete(s.BaseServer.DataStore, message.GetKey())
-	s.BaseServer.myDatastoreMutex.Unlock()
+	defer s.BaseServer.myDatastoreMutex.Unlock()
+
+	if _, exists := s.BaseServer.DataStore[message.GetKey()]; exists {
+		delete(s.BaseServer.DataStore, message.GetKey())
+		return true
+	}
+	return false
 }
 
 //Funzione per aggiungere un nuovo messaggio al datastore

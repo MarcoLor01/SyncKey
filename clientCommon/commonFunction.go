@@ -21,32 +21,6 @@ type Config struct {
 	} `json:"address"`
 }
 
-// Operation Definizione del tipo di enum per le operazioni
-type Operation int
-
-// Definizione delle costanti per le operazioni
-const (
-	Put Operation = iota + 1
-	Delete
-	Get
-)
-
-// Mappa per associare i valori numerici alle stringhe
-var operationToString = map[Operation]string{
-	Put:    "PUT",
-	Delete: "DELETE",
-	Get:    "GET",
-}
-
-// GetOperationString Funzione per ottenere la rappresentazione testuale dell'operazione
-
-func GetOperationString(op Operation) string {
-	if str, ok := operationToString[op]; ok {
-		return str
-	}
-	return "unknown"
-}
-
 //Funzione per la gestione delle azioni
 
 //Azione di put
@@ -157,10 +131,12 @@ func addElementToDsCausal(key string, value string, config Config, client *rpc.C
 //Funzione per aggiungere un elemento con consistenza sequenziale
 
 func deleteElementFromDsSequential(key string, client *rpc.Client, idMessageClient int, idMessage int) error {
+
 	n1 := key
 
 	message := common.Message{Key: n1, OperationType: 2, IdMessageClient: idMessageClient, IdMessage: idMessage}
 	args := common.MessageSequential{MessageBase: message}
+
 	result := common.Response{Done: false}
 
 	err := client.Call("ServerSequential.SequentialSendElement", args, &result)
@@ -170,10 +146,11 @@ func deleteElementFromDsSequential(key string, client *rpc.Client, idMessageClie
 	}
 
 	if result.Done {
-		printKeySuccessful(args.MessageBase.Key, GetOperationString(Operation(message.IdMessageClient)), message.IdMessageClient)
+		printDeleteSuccessful(args.MessageBase.Key, message.IdMessageClient)
 	} else {
-		printKeyFail(args.MessageBase.Key, GetOperationString(Operation(message.IdMessageClient)), message.IdMessageClient)
+		printDeleteFail(args.MessageBase.Key, message.IdMessageClient)
 	}
+
 	return nil
 }
 
@@ -193,9 +170,9 @@ func deleteElementFromDsCausal(key string, config Config, client *rpc.Client, id
 	}
 
 	if result.Done {
-		printKeySuccessful(args.MessageBase.Key, GetOperationString(Operation(message.IdMessageClient)), message.IdMessageClient)
+		printDeleteSuccessful(args.MessageBase.Key, message.IdMessageClient)
 	} else {
-		printKeyFail(args.MessageBase.Key, GetOperationString(Operation(message.IdMessageClient)), message.IdMessageClient)
+		printDeleteFail(args.MessageBase.Key, message.IdMessageClient)
 	}
 	return nil
 }
@@ -300,16 +277,8 @@ func printPutSuccessful(key, value string, idServer int) {
 	log.Println("ESEGUITA OPERAZIONE DI TIPO PUT SU SERVER: ", idServer, "CON: ", key, ":", value)
 }
 
-func printKeySuccessful(key string, operationType string, idServer int) {
-	log.Println("ESEGUITA OPERAZIONE DI TIPO ", operationType, "SU SERVER: ", idServer, "CON:", key)
-}
-
 func printPutFail(key string, value string, idServer int) {
 	log.Println("NON ESEGUITA OPERAZIONE DI TIPO PUT SU SERVER: ", idServer, "CON: ", key, ":", value)
-}
-
-func printKeyFail(key string, operationType string, idServer int) {
-	log.Println("NON ESEGUITA OPERAZIONE DI TIPO ", operationType, "SU SERVER: ", idServer, "CON:", key)
 }
 
 func printGetSuccessful(key string, value string, idServer int) {
@@ -318,4 +287,12 @@ func printGetSuccessful(key string, value string, idServer int) {
 
 func printGetFail(key string, idServer int) {
 	log.Println("NON ESEGUITA OPERAZIONE DI TIPO GET SU SERVER: ", idServer, "CON: ", key)
+}
+
+func printDeleteSuccessful(key string, idServer int) {
+	log.Println("ESEGUITA OPERAZIONE DI TIPO DELETE SU SERVER: ", idServer, "CON: ", key)
+}
+
+func printDeleteFail(key string, idServer int) {
+	log.Println("NON ESEGUITA OPERAZIONE DI TIPO DELETE SU SERVER: ", idServer, "CON: ", key)
 }
