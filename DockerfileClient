@@ -4,7 +4,6 @@ WORKDIR /SyncKey
 
 COPY go.mod .
 COPY serversAddrDocker.json .
-COPY clientFunctions.go .
 COPY common/serverClientStructure.go ./common/serverClientStructure.go
 
 RUN go get -u github.com/joho/godotenv
