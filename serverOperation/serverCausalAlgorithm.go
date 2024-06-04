@@ -202,7 +202,7 @@ func (s *ServerCausal) sendMessageToApplication(message common.MessageCausal, re
 			return err
 		}
 
-		log.Println("ESEGUITA, PROVENIENTE DA SERVER: ", message.GetServerID(), "azione di put per messaggio con key: ", message.GetKey(), " e value: ", message.GetValue())
+		log.Println(OperationExecuted, message.GetServerID(), "azione di put per messaggio con key: ", message.GetKey(), " e value: ", message.GetValue())
 
 		reply.SetDone(true)
 
@@ -213,7 +213,7 @@ func (s *ServerCausal) sendMessageToApplication(message common.MessageCausal, re
 			return err
 		}
 
-		log.Println("ESEGUITA, PROVENIENTE DA SERVER: ", message.GetServerID(), "azione di delete per messaggio con key: ", message.GetKey())
+		log.Println(OperationExecuted, message.GetServerID(), "azione di delete per messaggio con key: ", message.GetKey())
 
 		reply.SetDone(true)
 
@@ -224,7 +224,7 @@ func (s *ServerCausal) sendMessageToApplication(message common.MessageCausal, re
 		if errGet != nil {
 			return errGet
 		}
-		log.Println("ESEGUITA, PROVENIENTE DA SERVER: ", message.GetServerID(), "azione di get per messaggio con key: ", message.GetKey(), "e value: ", responseGet.GetValue)
+		log.Println(OperationExecuted, message.GetServerID(), "azione di get per messaggio con key: ", message.GetKey(), "e value: ", responseGet.GetValue)
 		reply.SetDone(true)
 		reply.SetValue(responseGet.GetResponseValue())
 

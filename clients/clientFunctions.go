@@ -13,6 +13,7 @@ import (
 const datastoreError string = "error adding the element to datastore, error: "
 const datastoreDeleteError string = "error deleting the element from the datastore, error: "
 const datastoreGetError string = "error getting the element from the datastore, error: "
+const sendOperation string = "ServerSequential.SequentialSendElement"
 
 type Config struct {
 	Address []struct {
@@ -89,7 +90,7 @@ func addElementToDsSequential(key string, value string, client *rpc.Client, idMe
 
 	result := common.Response{Done: false}
 
-	err := client.Call("ServerSequential.SequentialSendElement", args, &result)
+	err := client.Call(sendOperation, args, &result)
 	if err != nil {
 		return fmt.Errorf(datastoreError+": %w", err)
 	}
@@ -139,7 +140,7 @@ func deleteElementFromDsSequential(key string, client *rpc.Client, idMessageClie
 
 	result := common.Response{Done: false}
 
-	err := client.Call("ServerSequential.SequentialSendElement", args, &result)
+	err := client.Call(sendOperation, args, &result)
 
 	if err != nil {
 		return fmt.Errorf(datastoreError+": %w", err)
@@ -211,7 +212,7 @@ func getElementFromDsSequential(key string, client *rpc.Client, idMessageClient 
 	}
 	reply := common.Response{Done: false, GetValue: ""}
 	args := common.MessageSequential{MessageBase: message}
-	err := client.Call("ServerSequential.SequentialSendElement", args, &reply)
+	err := client.Call(sendOperation, args, &reply)
 	if err != nil {
 		return fmt.Errorf(datastoreError+": %w", err)
 	}
@@ -253,10 +254,11 @@ func LoadConfig(configuration string) (Config, error) {
 	return config, nil
 }
 
-//Funzione per caricare le variabili d'ambiente dal file .env
+// Funzione per caricare le variabili d'ambiente dal file .env
+// DOCKER FUNZIONA CON: ".env"
 
 func LoadEnvironment() string {
-	err := godotenv.Load(".env")
+	err := godotenv.Load("../.env")
 	if err != nil {
 		log.Fatal("Error loading .env file", err)
 	}

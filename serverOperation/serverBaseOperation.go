@@ -16,6 +16,8 @@ import (
 var MyId int //ID del server
 var addresses ServerInformation
 
+const OperationExecuted string = "ESEGUITA, PROVENIENTE DA SERVER: "
+
 type ServerInformation struct {
 	Addresses []ServerAddress `json:"address"`
 }

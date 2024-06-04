@@ -38,8 +38,7 @@ func (s *ServerSequential) SequentialSendElement(message common.MessageSequentia
 	}
 
 	response.SetDone(reply.GetDone())
-	if message.GetOperationType() == 2 {
-	}
+
 	return nil
 }
 
@@ -330,13 +329,13 @@ func (s *ServerSequential) updateDataStore(message common.MessageSequential, rep
 	if message.MessageBase.OperationType == 1 {
 
 		s.sequentialAddElementDatastore(message)
-		log.Println("ESEGUITA, PROVENIENTE DA SERVER: ", message.GetServerID(), "azione di put per messaggio con key: ", message.GetKey(), " e value: ", message.GetValue())
+		log.Println(OperationExecuted, message.GetServerID(), "azione di put per messaggio con key: ", message.GetKey(), " e value: ", message.GetValue())
 		reply.SetDone(true)
 
 	} else if message.GetOperationType() == 2 {
 
 		if s.sequentialDeleteElementDatastore(message) {
-			log.Println("ESEGUITA, PROVENIENTE DA SERVER: ", message.GetServerID(), "azione di delete per messaggio con key: ", message.GetKey())
+			log.Println(OperationExecuted, message.GetServerID(), "azione di delete per messaggio con key: ", message.GetKey())
 			reply.SetDone(true)
 		} else {
 			log.Println("NON ESEGUITA, PROVENIENTE DA SERVER: ", message.GetServerID(), "tentativo di delete per messaggio con key: ", message.GetKey())
@@ -351,7 +350,7 @@ func (s *ServerSequential) updateDataStore(message common.MessageSequential, rep
 			return errGet
 		}
 
-		log.Println("ESEGUITA, PROVENIENTE DA SERVER: ", message.GetServerID(), "azione di get per messaggio con key: ", message.GetKey(), "e value: ", responseGet.GetValue)
+		log.Println(OperationExecuted, message.GetServerID(), "azione di get per messaggio con key: ", message.GetKey(), "e value: ", responseGet.GetValue)
 		reply.SetDone(true)
 		reply.SetValue(responseGet.GetResponseValue())
 

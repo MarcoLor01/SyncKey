@@ -324,38 +324,59 @@ func funcServer3HardSequential(client *rpc.Client, config Config, consistency in
 	executeActions(actions, wg)
 }
 
+// Funzione per richiedere l'input con validazione
+func getInput(prompt string, validValues []string) string {
+	var input string
+	for {
+		fmt.Println(prompt)
+		_, err := fmt.Scan(&input)
+		if err != nil {
+			log.Println("Errore di input:", err)
+			continue
+		}
+		for _, validValue := range validValues {
+			if input == validValue {
+				return input
+			}
+		}
+		fmt.Printf("Valore non riconosciuto. Per favore inserisci uno dei seguenti: %v\n", validValues)
+	}
+}
+
+// Funzione per eseguire i test in base al tipo e alla difficoltà
+func runTests(testType, testDifficulty string, config Config, client1, client2, client3 *rpc.Client) {
+	switch testType {
+	case "sequenziale":
+		switch testDifficulty {
+		case "medio":
+			if err := TestMedium(config, client1, client2, client3, 1); err != nil {
+				fmt.Println("TestMedium error:", err)
+			}
+		case "difficile":
+			if err := TestHard(config, client1, client2, client3, 1); err != nil {
+				fmt.Println("TestHard error:", err)
+			}
+		}
+	case "causale":
+		switch testDifficulty {
+		case "medio":
+			if err := TestMedium(config, client1, client2, client3, 0); err != nil {
+				fmt.Println("TestCausalMedium error:", err)
+			}
+		case "difficile":
+			if err := TestHard(config, client1, client2, client3, 0); err != nil {
+				fmt.Println("TestCausalHard error:", err)
+			}
+		}
+	}
+}
+
 func main() {
-	var testType, testDifficulty string
+	// Richiesta del tipo di test
+	testType := getInput("Inserisci il tipo di test (sequenziale o causale): ", []string{"sequenziale", "causale"})
 
-	// Funzione per richiedere il tipo di test con controllo validità
-	for {
-		fmt.Println("Inserisci il tipo di test (sequenziale o causale): ")
-		_, err := fmt.Scan(&testType)
-		if err != nil {
-			log.Println("Errore di input:", err)
-			continue
-		}
-		if testType == "sequenziale" || testType == "causale" {
-			break
-		} else {
-			fmt.Println("Tipo di test non riconosciuto. Per favore inserisci 'sequenziale' o 'causale'.")
-		}
-	}
-
-	// Funzione per richiedere la difficoltà del test con controllo validità
-	for {
-		fmt.Println("Inserisci la difficoltà del test (medio o difficile): ")
-		_, err := fmt.Scan(&testDifficulty)
-		if err != nil {
-			log.Println("Errore di input:", err)
-			continue
-		}
-		if testDifficulty == "medio" || testDifficulty == "difficile" {
-			break
-		} else {
-			fmt.Println("Difficoltà del test non riconosciuta. Per favore inserisci 'medio' o 'difficile'.")
-		}
-	}
+	// Richiesta della difficoltà del test
+	testDifficulty := getInput("Inserisci la difficoltà del test (medio o difficile): ", []string{"medio", "difficile"})
 
 	// Chiamata alla configurazione
 	err, config, client1, client2, client3 := Configuration()
@@ -364,33 +385,6 @@ func main() {
 		return
 	}
 
-	// Esecuzione dei test in base al tipo e alla difficoltà
-	switch testType {
-	case "sequenziale":
-		switch testDifficulty {
-		case "medio":
-			// Esegui il test sequenziale medio
-			if err := TestMedium(config, client1, client2, client3, 1); err != nil {
-				fmt.Println("TestMedium error:", err)
-			}
-		case "difficile":
-			// Esegui il test sequenziale difficile
-			if err := TestHard(config, client1, client2, client3, 1); err != nil {
-				fmt.Println("TestHard error:", err)
-			}
-		}
-	case "causale":
-		switch testDifficulty {
-		case "medio":
-			// Esegui il test causale medio
-			if err := TestMedium(config, client1, client2, client3, 0); err != nil {
-				fmt.Println("TestCausalMedium error:", err)
-			}
-		case "difficile":
-			// Esegui il test causale difficile
-			if err := TestHard(config, client1, client2, client3, 0); err != nil {
-				fmt.Println("TestCausalHard error:", err)
-			}
-		}
-	}
+	// Esecuzione dei test
+	runTests(testType, testDifficulty, config, client1, client2, client3)
 }
