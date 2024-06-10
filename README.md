@@ -39,9 +39,4 @@ Dopo aver scaricato l'eseguibile, aggiungi i permessi di esecuzione con il segue
 
 Runnare demon docker con il comando: ```sudo service docker start```
 
-Per poter aprire più bash contemporaneamente installiamo tmux: ```sudo yum install tmux```
-
-Per aprire una nuova sessione tmux: ```tmux new-session -s nome_sessione```
-
-Per navigare tra le finestre (create con ```ctrl+b``` e successivamente c), premere ```ctrl+b``` e p o n per successiva o precedente 
 
