@@ -91,7 +91,11 @@ func InitializeAndRegisterServerCausal(server *rpc.Server, numberClients int) {
 	if err != nil {
 		log.Fatal("Format of service SyncKey is not correct: ", err)
 	}
-	myServer.BaseServer.InitializeMessageClients(numberClients)
+	var reply bool
+	err = myServer.InitializeMessageClients(numberClients, &reply)
+	if err != nil {
+		log.Fatal("Error calling InitializeMessageClients")
+	}
 }
 
 func (s *ServerCausal) incrementMyTimestamp() {

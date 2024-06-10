@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/rpc"
+	"os"
 	"sync"
 	"time"
 )
@@ -371,20 +372,79 @@ func runTests(testType, testDifficulty string, config Config, client1, client2, 
 	}
 }
 
-func main() {
-	// Richiesta del tipo di test
-	testType := getInput("Inserisci il tipo di test (sequenziale o causale): ", []string{"sequenziale", "causale"})
+func checkIfContinue() bool {
+	continueTest := getInput("Eseguire altri test? (si o no)", []string{"si", "no"})
 
-	// Richiesta della difficoltà del test
-	testDifficulty := getInput("Inserisci la difficoltà del test (medio o difficile): ", []string{"medio", "difficile"})
-
-	// Chiamata alla configurazione
-	err, config, client1, client2, client3 := Configuration()
-	if err != nil {
-		log.Fatal(err)
-		return
+	switch continueTest {
+	case "si":
+		return true
+	case "no":
+		return false
 	}
 
-	// Esecuzione dei test
-	runTests(testType, testDifficulty, config, client1, client2, client3)
+	return false
+}
+
+func clearServer(client1 *rpc.Client, client2 *rpc.Client, client3 *rpc.Client) {
+
+	var reply bool
+	err1 := client1.Call("ServerSequential.InitializeMessageClients", 3, &reply)
+	if err1 != nil {
+		log.Fatalf("Error in calling function InitializeMessageClients, %v", err1)
+	}
+	var reply2 bool
+	err2 := client2.Call("ServerSequential.InitializeMessageClients", 3, &reply2)
+	if err2 != nil {
+		log.Fatal("Error in calling function InitializeMessageClients")
+	}
+	var reply3 bool
+	err3 := client3.Call("ServerSequential.InitializeMessageClients", 3, &reply3)
+	if err3 != nil {
+		log.Fatal("Error in calling function InitializeMessageClients")
+	}
+
+	var reply4 bool
+	err4 := client1.Call("ServerCausal.InitializeMessageClients", 3, &reply4)
+	if err4 != nil {
+		log.Fatalf("Error in calling function InitializeMessageClients, %v", err1)
+	}
+	var reply5 bool
+	err5 := client2.Call("ServerCausal.InitializeMessageClients", 3, &reply5)
+	if err5 != nil {
+		log.Fatal("Error in calling function InitializeMessageClients")
+	}
+	var reply6 bool
+	err6 := client3.Call("ServerCausal.InitializeMessageClients", 3, &reply6)
+	if err6 != nil {
+		log.Fatal("Error in calling function InitializeMessageClients")
+	}
+	iteration = 1
+}
+func main() {
+
+	for {
+		// Richiesta del tipo di test
+		testType := getInput("Inserisci il tipo di test (sequenziale o causale): ", []string{"sequenziale", "causale"})
+
+		// Richiesta della difficoltà del test
+		testDifficulty := getInput("Inserisci la difficoltà del test (medio o difficile): ", []string{"medio", "difficile"})
+
+		// Chiamata alla configurazione
+		err, config, client1, client2, client3 := Configuration()
+		if err != nil {
+			log.Fatal(err)
+			return
+		}
+
+		// Esecuzione dei test
+		runTests(testType, testDifficulty, config, client1, client2, client3)
+
+		continueBool := checkIfContinue()
+
+		if !continueBool {
+			os.Exit(0)
+		} else {
+			clearServer(client1, client2, client3)
+		}
+	}
 }

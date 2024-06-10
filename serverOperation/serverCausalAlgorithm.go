@@ -44,7 +44,7 @@ func (s *ServerCausal) causalSendToOtherServers(message common.MessageCausal, re
 
 	var g errgroup.Group
 	for _, address := range addresses.Addresses {
-		addr := address.Addr // Capture the loop variable
+		addr := address.Addr
 		g.Go(func() error {
 			return s.causalSendToSingleServer(addr, message, ch)
 		})

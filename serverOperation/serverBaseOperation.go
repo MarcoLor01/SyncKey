@@ -110,20 +110,40 @@ func calculateDelay() int {
 	return delay
 }
 
-func (s *ServerBase) InitializeMessageClients(numberClients int) {
+func (s *ServerCausal) InitializeMessageClients(numberClients int, reply *bool) error {
 
 	// Inizializza la slice con la dimensione corretta
-	s.myClientMessage = make([]common.ClientMessage, numberClients)
-	s.myClientMutex = make([]sync.Mutex, numberClients)
+	s.BaseServer.myClientMessage = make([]common.ClientMessage, numberClients)
+	s.BaseServer.myClientMutex = make([]sync.Mutex, numberClients)
 
 	// Inizializza ogni elemento della slice
 	for i := 0; i < numberClients; i++ {
-		s.myClientMessage[i] = common.ClientMessage{
+		s.BaseServer.myClientMessage[i] = common.ClientMessage{
 			ClientId:            i + 1, // Usa l'indice come client ID
 			ActualNumberMessage: 1,     // Imposta il valore iniziale appropriato
 			ActualAnswerMessage: 1,     // Imposta il valore iniziale appropriato
 		}
 	}
+
+	return nil
+}
+
+func (s *ServerSequential) InitializeMessageClients(numberClients int, reply *bool) error {
+
+	// Inizializza la slice con la dimensione corretta
+	s.BaseServer.myClientMessage = make([]common.ClientMessage, numberClients)
+	s.BaseServer.myClientMutex = make([]sync.Mutex, numberClients)
+
+	// Inizializza ogni elemento della slice
+	for i := 0; i < numberClients; i++ {
+		s.BaseServer.myClientMessage[i] = common.ClientMessage{
+			ClientId:            i + 1, // Usa l'indice come client ID
+			ActualNumberMessage: 1,     // Imposta il valore iniziale appropriato
+			ActualAnswerMessage: 1,     // Imposta il valore iniziale appropriato
+		}
+	}
+
+	return nil
 }
 
 //Controllo se i messaggi arrivano in ordine rispettando l'ordinamento FIFO, in caso contrario, attendo

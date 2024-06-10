@@ -255,10 +255,11 @@ func LoadConfig(configuration string) (Config, error) {
 }
 
 // Funzione per caricare le variabili d'ambiente dal file .env
-// DOCKER FUNZIONA CON: ".env"
+// DOCKER FUNZIONA CON: ".env", locale: "../.env"
 
 func LoadEnvironment() string {
-	err := godotenv.Load("../.env")
+	path := os.Getenv("ENV_PATH")
+	err := godotenv.Load(path)
 	if err != nil {
 		log.Fatal("Error loading .env file", err)
 	}

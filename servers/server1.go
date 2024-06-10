@@ -12,8 +12,7 @@ import (
 
 func main() {
 
-	path := os.Getenv("ENV_PATH") //Prendo il path del file .env, che cambia in base
-	//a se sto usando la configurazione locale o quella docker
+	path := os.Getenv("ENV_PATH")
 	err := godotenv.Load(path)
 	if err != nil {
 		log.Fatal("Error loading .env file")
@@ -34,7 +33,7 @@ func main() {
 	server = rpc.NewServer()
 	err = serverOperation.InitializeServerList()
 	numberClients := serverOperation.GetLength()
-	fmt.Println("Number of client: ", numberClients)
+
 	if err != nil {
 		log.Fatal(err)
 	}
