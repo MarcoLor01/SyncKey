@@ -151,7 +151,6 @@ func deleteElementFromDsSequential(key string, client *rpc.Client, idMessageClie
 	} else {
 		printDeleteFail(args.MessageBase.Key, message.IdMessageClient)
 	}
-
 	return nil
 }
 
@@ -233,6 +232,7 @@ func CreateClient(config Config, serverNumber int) (*rpc.Client, error) {
 		return nil, fmt.Errorf("error in dialing: %w", err)
 	}
 	return client, nil
+
 }
 
 func LoadConfig(configuration string) (Config, error) {

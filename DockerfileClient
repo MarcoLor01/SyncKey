@@ -12,6 +12,7 @@ RUN go get -u github.com/joho/godotenv
 
 COPY clients ./clients
 RUN go build -o clientTests ./clients
+ENV ENV_PATH=./.env
 
 EXPOSE 8080
 
