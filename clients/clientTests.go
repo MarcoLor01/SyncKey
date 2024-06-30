@@ -37,11 +37,11 @@ func handleDeleteWithChannel(consistency int, key string, config Config, client 
 }
 
 func executeActions(actions []func(), wg *sync.WaitGroup) {
-	defer wg.Done()
 
 	actionDone := make(chan bool, len(actions))
+	defer fmt.Println("CHIUDO DONE")
 	defer close(actionDone)
-
+	defer wg.Done()
 	for _, action := range actions {
 		go func(action func()) {
 			action()
@@ -49,15 +49,15 @@ func executeActions(actions []func(), wg *sync.WaitGroup) {
 		}(action)
 
 		mu.Lock()
-		timeSleep := time.Duration(200 * iteration)
+		timeSleep := time.Duration(80 * iteration)
 		iteration++
 		mu.Unlock()
 		time.Sleep(timeSleep * time.Millisecond)
 	}
-
 	for i := 0; i < len(actions); i++ {
 		<-actionDone
 	}
+
 }
 
 func funcServer1MediumCausal(client *rpc.Client, config Config, consistency int, wg *sync.WaitGroup, errCh chan<- error) {
@@ -253,8 +253,9 @@ func TestHard(config Config, client1 *rpc.Client, client2 *rpc.Client, client3 *
 	} else {
 		log.Fatal("wrong value for consistency")
 	}
+	fmt.Println("ATTENDO QUI")
 	wg.Wait()
-
+	fmt.Println("SONO PASSATO BRO")
 	go func() {
 		for err := range errCh {
 			if err != nil {

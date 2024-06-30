@@ -12,6 +12,7 @@ import (
 //Funzione con cui il ricevente del Client informa tutti i server del messaggio ricevuto
 
 func (s *ServerSequential) SequentialSendElement(message common.MessageSequential, response *common.Response) error {
+	fmt.Println("RICEVO OPERAZIONE CON KEY: ", message.GetKey(), " E VALORE: ", message.GetValue())
 
 	responseProcess := s.BaseServer.createResponse()
 
@@ -357,7 +358,6 @@ func (s *ServerSequential) updateDataStore(message common.MessageSequential, rep
 	} else if message.GetOperationType() == 3 && message.GetServerID() != MyId {
 		reply.SetDone(true)
 	} else {
-		reply.SetDone(true)
 	}
 	return nil
 }
